@@ -33,6 +33,8 @@ function initializeAudio(url, file) {
     const bufferLength = analyser.frequencyBinCount;
     dataArray = new Uint8Array(bufferLength);
 
+    console.log("Analyser initialized with FFT size:", analyser.fftSize);
+
     canvas = document.getElementById("visualizer");
     canvasCtx = canvas.getContext("2d");
     
@@ -47,6 +49,9 @@ function initializeAudio(url, file) {
     drawPianoRoll();
     drawWaterfall();
     
+    document.getElementById("train").addEventListener("click", () => {
+        generateNotesForTraining(audioContext, analyser, dataArray);
+    });
     document.getElementById("play").addEventListener("click", () => {
         if (audioElement) {
             audioElement.play();
@@ -160,14 +165,14 @@ function drawWaterfall() {
     setTimeout(drawWaterfall, 20);
     analyser.getByteFrequencyData(dataArray);
     waterfallCtx.drawImage(waterfallCanvas, 0, 1);
-    waterfallCtx.clearRect(0, 0, waterfallCanvas.width, 1);
+    waterfallCtx.clearRect(0, 0, pianoRollCanvas.width, 1);
     
     const numOctaves = 4;
     const totalKeys = numOctaves * 12;
-    const keyWidth = waterfallCanvas.width / totalKeys;
+    const keyWidth = pianoRollCanvas.width / totalKeys;
     
-    const minFreq = 65.406; // Мінімальна частота фортепіано (C2)
-    const maxFreq = 1046.5; // Максимальна частота (C7, відповідно до 4 октав)
+    const minFreq = 130.81; // Мінімальна частота фортепіано (C2)
+    const maxFreq = 1975.53; // Максимальна частота (C7, відповідно до 4 октав)
     const freqPerKey = (maxFreq - minFreq) / totalKeys;
     
     for (let key = 0; key < totalKeys; key++) {

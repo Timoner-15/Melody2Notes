@@ -1,32 +1,16 @@
-if (!window.tf) {
-    const tf = window.tf || {};
-}
-if (!window.audioContext) {
-    window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-}
-let audioContext = window.audioContext;
-console.log(audioContext);
-if (!window.analyser || !(window.analyser instanceof AnalyserNode)) {
-    window.analyser = null;
-    window.dataArray = null;
-}
-
 // Генератор нот для тренування
-window.generateNotesForTraining = async function() {
-    if (!audioContext) {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+async function generateNotesForTraining(audioContext, analyser, dataArray) {
+    if (!(analyser instanceof AnalyserNode)) {
+        console.error("Invalid analyser instance:", analyser);
+        return;
     }
-    if (!window.analyser || !(window.analyser instanceof AnalyserNode)) {
-        window.analyser = audioContext.createAnalyser();
-        window.sourceNode = audioContext.createOscillator();
-        window.sourceNode.connect(window.analyser);
-        window.analyser.connect(audioContext.destination);
-        window.analyser.fftSize = 8192;
-        if (!window.dataArray) {
-            window.dataArray = new Uint8Array(window.analyser.frequencyBinCount);
-        }
-    }
-    
+
+    // Встановлюємо FFT розмір
+    analyser.fftSize = 8192;
+    const bufferLength = analyser.frequencyBinCount;
+    dataArray = new Uint8Array(bufferLength);
+
+    console.log("Training Analyser initialized with FFT size:", analyser.fftSize);    
     const notes = {
         "C3": 130.81, "D3": 146.83, "E3": 164.81, "F3": 174.61, "G3": 196.00, "A3": 220.00, "B3": 246.94,
         "C4": 261.63, "D4": 293.66, "E4": 329.63, "F4": 349.23, "G4": 392.00, "A4": 440.00, "B4": 493.88,
@@ -38,8 +22,8 @@ window.generateNotesForTraining = async function() {
     for (const [note, frequency] of Object.entries(notes)) {
         console.log("Граю та записую:", note);
         await new Promise(resolve => {
-            playGeneratedNote(frequency, 1, () => {
-                captureTrainingData(note);
+            playGeneratedNote(audioContext, analyser, dataArray, frequency, 1, () => {
+                captureTrainingData(note, analyser, dataArray);
                 resolve();
             });
         });
@@ -48,17 +32,16 @@ window.generateNotesForTraining = async function() {
     console.log("Автоматичне тренування завершено.");
 }
 
-window.playGeneratedNote = function(frequency, duration = 1, callback = null) {
+function playGeneratedNote(audioContext, analyser, dataArray, frequency, duration = 1, callback = null) {
     const osc = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
 
     osc.type = "sine";
     osc.frequency.value = frequency;
-    gainNode.gain.setValueAtTime(1, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
 
     osc.connect(gainNode);
-    gainNode.connect(audioContext.destination);
+    gainNode.connect(analyser); // Підключаємо до аналізатора
+    gainNode.connect(audioContext.destination); // Відправляємо звук в динаміки
 
     osc.start();
     osc.stop(audioContext.currentTime + duration);
@@ -72,23 +55,61 @@ window.playGeneratedNote = function(frequency, duration = 1, callback = null) {
 const trainingData = [];
 const labels = [];
 
-window.captureTrainingData = function(note) {
-    if (!window.analyser || !window.dataArray) {
-        console.error("Analyser or dataArray is not initialized");
+function captureTrainingData(note, analyser, dataArray) {
+    if (!(analyser instanceof AnalyserNode)) {
+        console.error("Invalid analyser instance:", analyser);
         return;
     }
+    if (!dataArray) {
+        console.error("Data array is not initialized.");
+        return;
+    }
+    setTimeout(() => {
+        analyser.getByteFrequencyData(dataArray);
+        const input = Array.from(dataArray);
+        trainingData.push(input);
+        
+        const output = new Array(180).fill(0);
+        const index = noteIndex(note);
+        if (index >= 0 && index < 180) {
+            output[index] = 1;
+        } else {
+            console.warn(`Note ${note} has an invalid index: ${index}`);
+        }
+        labels.push(output);
+        console.log(`Збережено: ${note}, Індекс: ${index}, Дані:`, input.slice(0, 10)); // Перевіряємо перші 10 значень
+    }, 200);
+}
+
+function noteIndex(note) {
+    const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    const octave = parseInt(note.slice(-1));
+    const key = notes.indexOf(note.slice(0, -1));
+    return (octave - 3) * 12 + key;
+}
+
+function captureTrainingData(note, analyser, dataArray) {
+    if (!(analyser instanceof AnalyserNode)) {
+        console.error("Invalid analyser instance:", analyser);
+        return;
+    }
+    if (!dataArray) {
+        console.error("Data array is not initialized.");
+        return;
+    }
+    
     analyser.getByteFrequencyData(dataArray);
     const input = Array.from(dataArray);
     trainingData.push(input);
     
     const output = new Array(180).fill(0);
-    output[noteIndex(note)] = 1;
+    const index = noteIndex(note);
+    if (index >= 0 && index < 180) {
+        output[index] = 1;
+    } else {
+        console.warn(`Note ${note} has an invalid index: ${index}`);
+    }
     labels.push(output);
-}
 
-window.noteIndex = function(note) {
-    const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-    const octave = parseInt(note.slice(-1));
-    const key = notes.indexOf(note.slice(0, -1));
-    return (octave - 3) * 12 + key;
+    console.log(`Збережено: ${note}, Індекс: ${index}, Дані:`, input.slice(0, 10)); // Виводимо перші 10 значень
 }
