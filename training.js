@@ -6,9 +6,9 @@ async function generateNotesForTraining(audioContext, analyser, dataArray) {
     }
 
     // Встановлюємо FFT розмір
-    analyser.fftSize = 8192;
-    const bufferLength = analyser.frequencyBinCount;
-    dataArray = new Uint8Array(bufferLength);
+    // analyser.fftSize = 8192;
+    // const bufferLength = analyser.frequencyBinCount;
+    // dataArray = new Uint8Array(bufferLength);
 
     console.log("Training Analyser initialized with FFT size:", analyser.fftSize);    
     const notes = {

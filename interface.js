@@ -1,14 +1,44 @@
 const tf = window.tf || {};
 // console.log(audioContext);
 let audioElement, sourceNode, analyser, dataArray, canvas, canvasCtx, pianoRollCanvas, pianoRollCtx, waterfallCanvas, waterfallCtx;
+let lastLogged = 0; // timestamp in ms
 
 // Додаємо новий canvas для частотного водоспаду
 window.onload = function() {
+    const windowSelect = document.createElement("select");
+    windowSelect.id = "windowFunction";
+    ["Hamming", "Blackman-Harris"].forEach(name => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        windowSelect.appendChild(opt);
+    });
+    document.body.insertBefore(windowSelect, document.body.firstChild);
     waterfallCanvas = document.createElement("canvas");
     waterfallCanvas.width = 600;
     waterfallCanvas.height = 100;
     waterfallCanvas.style.background = "black";
     document.body.appendChild(waterfallCanvas);
+
+     // Додаємо canvas для сирого спектру
+     const rawSpectrumCanvas = document.createElement("canvas");
+     rawSpectrumCanvas.id = "rawSpectrumCanvas";
+     rawSpectrumCanvas.width = 600;
+     rawSpectrumCanvas.height = 150;
+     rawSpectrumCanvas.style.background = "#111";
+     document.body.appendChild(rawSpectrumCanvas);
+ 
+     // Додаємо canvas для спектру після віконної функції
+     const windowedSpectrumCanvas = document.createElement("canvas");
+     windowedSpectrumCanvas.id = "windowedSpectrumCanvas";
+     windowedSpectrumCanvas.width = 600;
+     windowedSpectrumCanvas.height = 150;
+     windowedSpectrumCanvas.style.background = "#111";
+     document.body.appendChild(windowedSpectrumCanvas);
+ 
+     // Стартуємо анімацію спектрів
+     drawSpectrums();
+
     waterfallCtx = waterfallCanvas.getContext("2d", { willReadFrequently: true });
 };
 
@@ -156,14 +186,89 @@ function updateFileInfo(file) {
                              <strong>Current Chord:</strong> (Not implemented yet)`;
 }
 
+function applyWindowFunction(dataArray, type) {
+    const N = dataArray.length;
+    let windowed = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+        let winCoef = 1;
+        if (type === "Hamming") {
+            winCoef = 0.54 - 0.46 * Math.cos((2 * Math.PI * i) / (N - 1));
+        } else if (type === "Blackman-Harris") {
+            winCoef = 0.35875
+                     - 0.48829 * Math.cos((2 * Math.PI * i) / (N - 1))
+                     + 0.14128 * Math.cos((4 * Math.PI * i) / (N - 1))
+                     - 0.01168 * Math.cos((6 * Math.PI * i) / (N - 1));
+        }
+        windowed[i] = dataArray[i] * winCoef;
+    }
+    return windowed;
+}
+
+
+function drawSpectrums() {
+    requestAnimationFrame(drawSpectrums);
+    if (!analyser) return;
+    analyser.getByteFrequencyData(dataArray);
+
+    const rawCtx = document.getElementById("rawSpectrumCanvas")?.getContext("2d");
+    const winCtx = document.getElementById("windowedSpectrumCanvas")?.getContext("2d");
+    const windowType = document.getElementById("windowFunction")?.value || "Hamming";
+    const processedData = applyWindowFunction(dataArray, windowType);
+    const binCount = Math.floor((2000 / audioContext.sampleRate) * analyser.fftSize);
+
+    if (rawCtx) {
+        rawCtx.clearRect(0, 0, 600, 150);
+        rawCtx.beginPath();
+        rawCtx.moveTo(0, 150);
+        
+        for (let i = 0; i < binCount; i++) {
+            const x = (i / binCount) * 600;
+            const y = 150 - (dataArray[i] / 255) * 150;
+            rawCtx.lineTo(x, y);
+        }
+        rawCtx.lineTo(600, 150);
+        rawCtx.fillStyle = "rgba(255,255,255,0.3)";
+        rawCtx.fill();
+    }
+
+    if (winCtx) {
+        winCtx.clearRect(0, 0, 600, 150);
+        winCtx.beginPath();
+        winCtx.moveTo(0, 150);
+        for (let i = 0; i < binCount; i++) {
+            const x = (i / binCount) * 600;
+            const y = 150 - (processedData[i] / 255) * 150;
+            winCtx.lineTo(x, y);
+        }
+        winCtx.lineTo(600, 150);
+        winCtx.fillStyle = "rgba(255, 200, 0, 0.3)";
+        winCtx.fill();
+    }
+}
+
+
 /// Функція для оновлення частотного водоспаду
 function drawWaterfall() {
+    // лог до застосування вікна
+    const now = Date.now();
+    if (now - lastLogged >= 10000) {
+        const rawSnapshot = Array.from(dataArray).slice(0, 50);
+        console.log("До вікна:", rawSnapshot);
+        lastLogged = now;
+    }
+
     if (!analyser || !waterfallCtx) {
         console.error('Waterfall visualization: Analyser or Canvas context is not initialized');
         return;
     }
     setTimeout(drawWaterfall, 20);
     analyser.getByteFrequencyData(dataArray);
+    const windowType = document.getElementById("windowFunction")?.value || "Hamming";
+    const processedData = applyWindowFunction(dataArray, windowType);
+    if (now - lastLogged < 10) { // log just after above
+        const windowedSnapshot = Array.from(processedData).slice(0, 50);
+        console.log("Після вікна (", windowType, "):", windowedSnapshot);
+    }
     waterfallCtx.drawImage(waterfallCanvas, 0, 1);
     waterfallCtx.clearRect(0, 0, pianoRollCanvas.width, 1);
     
@@ -171,8 +276,8 @@ function drawWaterfall() {
     const totalKeys = numOctaves * 12;
     const keyWidth = pianoRollCanvas.width / totalKeys;
     
-    const minFreq = 130.81; // Мінімальна частота фортепіано (C2)
-    const maxFreq = 1975.53; // Максимальна частота (C7, відповідно до 4 октав)
+    const minFreq = 130.81; // Мінімальна частота фортепіано (C3)
+    const maxFreq = 1975.53; // Максимальна частота (B6, відповідно до 4 октав)
     const freqPerKey = (maxFreq - minFreq) / totalKeys;
     
     for (let key = 0; key < totalKeys; key++) {
