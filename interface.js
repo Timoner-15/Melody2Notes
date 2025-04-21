@@ -32,7 +32,6 @@ window.onload = function() {
     const trainBtn = document.createElement("button");
     trainBtn.textContent = "Тренувати модель";
     trainBtn.onclick = () => {
-        createModel();
         trainModel();
     };
     document.body.appendChild(trainBtn);
