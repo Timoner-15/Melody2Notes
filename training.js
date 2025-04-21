@@ -6,29 +6,39 @@ const trainingData = [];
 const labels = [];
 
 // --- Список міток для нот і акордів ---
-const allLabels = [
-    // 48 нот (від C3 до B6, частоти в Гц)
-    "C3 (130.81Hz)","C#3 (138.59Hz)","D3 (146.83Hz)","D#3 (155.56Hz)","E3 (164.81Hz)","F3 (174.61Hz)","F#3 (185.00Hz)","G3 (196.00Hz)","G#3 (207.65Hz)","A3 (220.00Hz)","A#3 (233.08Hz)","B3 (246.94Hz)",
-    "C4 (261.63Hz)","C#4 (277.18Hz)","D4 (293.66Hz)","D#4 (311.13Hz)","E4 (329.63Hz)","F4 (349.23Hz)","F#4 (369.99Hz)","G4 (392.00Hz)","G#4 (415.30Hz)","A4 (440.00Hz)","A#4 (466.16Hz)","B4 (493.88Hz)",
-    "C5 (523.25Hz)","C#5 (554.37Hz)","D5 (587.33Hz)","D#5 (622.25Hz)","E5 (659.25Hz)","F5 (698.46Hz)","F#5 (739.99Hz)","G5 (783.99Hz)","G#5 (830.61Hz)","A5 (880.00Hz)","A#5 (932.33Hz)","B5 (987.77Hz)",
-    "C6 (1046.50Hz)","C#6 (1108.73Hz)","D6 (1174.66Hz)","D#6 (1244.51Hz)","E6 (1318.51Hz)","F6 (1396.91Hz)","F#6 (1479.98Hz)","G6 (1567.98Hz)","G#6 (1661.22Hz)","A6 (1760.00Hz)","A#6 (1864.66Hz)","B6 (1975.53Hz)",
-    "C7 (2093.00Hz)"
+const notes = [
+    "C3", "C#3", "D3", "D#3", "E3", "F3", "F#3",
+    "G3", "G#3", "A3", "A#3", "B3"
+  ];
 
-    // 132 акорди, випадково вибрані (назви умовні, можуть бути будь-які комбінації)
-    // "C_E_G", "D_F_A", "E_G_B", "F_A_C5", "G_B_D5", "A_C5_E5", "B_D5_F#5", "C#4_E4_A4",
-    // "D#4_G4_B4", "F#4_A4_C5", "G#4_C5_E5", "A#4_D5_F5", "C5_E5_G5", "D5_F5_A5", "E5_G5_B5",
-    // "F5_A5_C6", "G5_B5_D6", "A5_C6_E6", "B5_D6_F#6", "C6_E6_G6", "D6_F6_A6", "E6_G6_B6",
-    // "C_E_G#", "D_F#_A#", "E_G#_B", "F#_A_C#5", "G#_B_D#5", "A#_C#5_E5", "B_D#5_F#5",
-    // "C4_E4_F#4", "D4_F#4_G4", "E4_G4_A4", "F4_A4_B4", "G4_B4_C5", "A4_C5_D5", "B4_D5_E5",
-    // "C5_E5_F#5", "D5_F#5_G5", "E5_G5_A5", "F5_A5_B5", "G5_B5_C6", "A5_C6_D6", "B5_D6_E6",
-    // "C3_E3_G3", "C4_E4_G4", "C5_E5_G5", "D3_F3_A3", "D4_F4_A4", "D5_F5_A5",
-    // "E3_G3_B3", "E4_G4_B4", "E5_G5_B5", "F3_A3_C4", "F4_A4_C5", "F5_A5_C6",
-    // "G3_B3_D4", "G4_B4_D5", "G5_B5_D6", "A3_C4_E4", "A4_C5_E5", "A5_C6_E6",
-    // "B3_D4_F#4", "B4_D5_F#5", "B5_D6_F#6"
-];
+const allLabels = notes.map(note => {
+const freq = getFrequencyByNote(note);
+return `${note} (${freq.toFixed(2)}Hz)`;
+});
+
+  // const allLabels = [
+//     // 48 нот (від C3 до B6, частоти в Гц)
+//     "C3 (130.81Hz)","C#3 (138.59Hz)","D3 (146.83Hz)","D#3 (155.56Hz)","E3 (164.81Hz)","F3 (174.61Hz)","F#3 (185.00Hz)","G3 (196.00Hz)","G#3 (207.65Hz)","A3 (220.00Hz)","A#3 (233.08Hz)","B3 (246.94Hz)"
+//     // "C4 (261.63Hz)","C#4 (277.18Hz)","D4 (293.66Hz)","D#4 (311.13Hz)","E4 (329.63Hz)","F4 (349.23Hz)","F#4 (369.99Hz)","G4 (392.00Hz)","G#4 (415.30Hz)","A4 (440.00Hz)","A#4 (466.16Hz)","B4 (493.88Hz)",
+//     // "C5 (523.25Hz)","C#5 (554.37Hz)","D5 (587.33Hz)","D#5 (622.25Hz)","E5 (659.25Hz)","F5 (698.46Hz)","F#5 (739.99Hz)","G5 (783.99Hz)","G#5 (830.61Hz)","A5 (880.00Hz)","A#5 (932.33Hz)","B5 (987.77Hz)",
+//     // "C6 (1046.50Hz)","C#6 (1108.73Hz)","D6 (1174.66Hz)","D#6 (1244.51Hz)","E6 (1318.51Hz)","F6 (1396.91Hz)","F#6 (1479.98Hz)","G6 (1567.98Hz)","G#6 (1661.22Hz)","A6 (1760.00Hz)","A#6 (1864.66Hz)","B6 (1975.53Hz)",
+//     // "C7 (2093.00Hz)"
+
+//     // 132 акорди, випадково вибрані (назви умовні, можуть бути будь-які комбінації)
+//     // "C_E_G", "D_F_A", "E_G_B", "F_A_C5", "G_B_D5", "A_C5_E5", "B_D5_F#5", "C#4_E4_A4",
+//     // "D#4_G4_B4", "F#4_A4_C5", "G#4_C5_E5", "A#4_D5_F5", "C5_E5_G5", "D5_F5_A5", "E5_G5_B5",
+//     // "F5_A5_C6", "G5_B5_D6", "A5_C6_E6", "B5_D6_F#6", "C6_E6_G6", "D6_F6_A6", "E6_G6_B6",
+//     // "C_E_G#", "D_F#_A#", "E_G#_B", "F#_A_C#5", "G#_B_D#5", "A#_C#5_E5", "B_D#5_F#5",
+//     // "C4_E4_F#4", "D4_F#4_G4", "E4_G4_A4", "F4_A4_B4", "G4_B4_C5", "A4_C5_D5", "B4_D5_E5",
+//     // "C5_E5_F#5", "D5_F#5_G5", "E5_G5_A5", "F5_A5_B5", "G5_B5_C6", "A5_C6_D6", "B5_D6_E6",
+//     // "C3_E3_G3", "C4_E4_G4", "C5_E5_G5", "D3_F3_A3", "D4_F4_A4", "D5_F5_A5",
+//     // "E3_G3_B3", "E4_G4_B4", "E5_G5_B5", "F3_A3_C4", "F4_A4_C5", "F5_A5_C6",
+//     // "G3_B3_D4", "G4_B4_D5", "G5_B5_D6", "A3_C4_E4", "A4_C5_E5", "A5_C6_E6",
+//     // "B3_D4_F#4", "B4_D5_F#5", "B5_D6_F#6"
+// ];
 
 function generateNotesForTraining(audioContext, analyser, dataArray) {
-    const notes = allLabels.slice(0, 48).map(label => label.split(" ")[0]);
+    const notes = allLabels.map(label => label.split(" ")[0]);
 
     const playSequentially = async () => {
         for (const note of notes) {
@@ -37,7 +47,12 @@ function generateNotesForTraining(audioContext, analyser, dataArray) {
                 playGeneratedNote(audioContext, analyser, dataArray, frequency, 1, () => {
                     analyser.getByteFrequencyData(dataArray);
                     const input = Array.from(dataArray).map(v => v / 255);
-                    const label = new Array(48).fill(0);
+                    const hasEnergy = input.some(val => val > 0.01);
+                    if (!hasEnergy) {
+                        console.warn("Пропущено порожній спектр (всі значення ≈ 0)");
+                        return resolve();
+                    }
+                    const label = new Array(12).fill(0);
                     const index = notes.indexOf(note);
                     label[index] = 1;
                     trainingData.push(input);
@@ -53,15 +68,21 @@ function generateNotesForTraining(audioContext, analyser, dataArray) {
 }
 
 function getFrequencyByNote(note) {
-    const noteMap = {"C": 0,"C#": 1,"D": 2,"D#": 3,"E": 4,"F": 5,"F#": 6,"G": 7,"G#": 8,"A": 9,"A#": 10,"B": 11};
+    const noteMap = { "C": 0, "C#": 1, "D": 2, "D#": 3, "E": 4, "F": 5, "F#": 6, "G": 7, "G#": 8, "A": 9, "A#": 10, "B": 11 };
     const match = note.match(/^([A-G]#?)(\d)$/);
     if (!match) return 0;
     const [, key, octave] = match;
-    const semitoneOffset = noteMap[key] + (parseInt(octave) - 4) * 12;
-    const frequency = 440 * Math.pow(2, semitoneOffset / 12);
 
-    // Обмеження діапазону (наприклад, від 65 Гц до 2100 Гц)
-    if (frequency < 130 || frequency > 2100) return 0;
+    // Обчислюємо порядковий номер ноти (MIDI-style)
+    const noteIndex = noteMap[key] + (parseInt(octave) * 12);
+    const a4Index = 9 + 4 * 12; // A4 = MIDI 57
+    const semitoneOffset = noteIndex - a4Index;
+
+    const frequency = 440 * Math.pow(2, semitoneOffset / 12);
+    console.log(`Нота: ${key}${octave}, семітон: ${semitoneOffset}, частота: ${frequency.toFixed(2)} Hz`);
+
+    // Обмеження діапазону
+    if (frequency < 60 || frequency > 260) return 0;
 
     return frequency;
 }
@@ -89,32 +110,49 @@ function playGeneratedNote(audioContext, analyser, dataArray, frequency, duratio
     const endBin = Math.ceil(2100 / binSize);
 
     osc.stop(audioContext.currentTime + duration);
+
     osc.onended = async () => {
-        while (getTrainingPauseState()) {
-            await new Promise(r => setTimeout(r, 1000));
-        }
         analyser.getByteFrequencyData(dataArray);
         const trimmed = Array.from(dataArray).slice(startBin, endBin).map(v => v / 255);
-        if (callback) callback(trimmed);
+    
+        // 🔮 Передбачення
+        const predictedIndex = predictNote(trimmed);
+        const predictedNote = indexToNote(predictedIndex);
+        console.log("🔮 Передбачено:", predictedNote);
+    
+        // Зберігаємо дані
+        window._lastInput = trimmed;
+        window._lastPrediction = predictedNote;
+    
+        // Поставити паузу ДО resolve()!
+        pauseTraining();
+    
+        // дочекатися resume
+        while (getTrainingPauseState()) {
+            await new Promise(r => setTimeout(r, 100));
+        }
+    
+        if (callback) callback(trimmed); // тільки після того, як користувач зняв паузу
     };
 }
 
-function createModel(inputSize = 4096, outputSize = 48) {
+function createModel(inputSize = null, outputSize = notes.length) {
+    if (!inputSize) inputSize = trainingData[0]?.length || 4096;
     model = tf.sequential();
-    model.add(tf.layers.dense({ units: outputSize, activation: 'softmax', inputShape: [4096] }));
+    model.add(tf.layers.dense({ units: outputSize, activation: 'softmax', inputShape: [inputSize] }));
     model.compile({ optimizer: 'adam', loss: 'categoricalCrossentropy', metrics: ['accuracy'] });
 
     console.log("Модель створено:");
     model.summary();
 }
 
-async function trainModel(epochs = 10, batchSize = 16) {
+async function trainModel(epochs = 100, batchSize = 16) {
     if (!trainingData.length || !labels.length) {
         console.error("Немає даних для тренування");
         return;
     }
-
-    const xs = tf.tensor2d(trainingData, [trainingData.length, 4096]);
+    const inputSize = trainingData[0].length;
+    const xs = tf.tensor2d(trainingData, [trainingData.length, inputSize]);
     const ys = tf.tensor2d(labels);
 
     console.log("Починається тренування...");
@@ -135,6 +173,10 @@ async function trainModel(epochs = 10, batchSize = 16) {
 }
 
 function predictNote(inputArray) {
+    if (!model) {
+        console.error("Модель ще не створено або не завантажено.");
+        return -1;
+    }
     const input = tf.tensor2d([inputArray]);
     const prediction = model.predict(input);
     const index = prediction.argMax(-1).dataSync()[0];
@@ -205,3 +247,10 @@ async function loadModel() {
         console.error("Не вдалося завантажити модель:", err);
     }
 };
+
+function resetTraining() {
+    trainingData.length = 0;
+    labels.length = 0;
+    console.log("🧹 Дані очищено. Готово до нового тренування.");
+    createModel(348); // створює нову модель з правильним inputSize, якщо є trainingData[0]
+}
