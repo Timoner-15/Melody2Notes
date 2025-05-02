@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audio Player with Visualization</title>
@@ -14,7 +15,8 @@
 <body>
     <h2>Custom Audio Player</h2>
     <input type="file" id="audioFile" accept="audio/mp3">
-    <button id="train">Train Model</button>
+    <button id="train_notes">Train Model Notes</button>
+    <button id="train_chords">Train Model Chords</button>
     <canvas id="visualizer" height="25"></canvas>
     <br>
     <button id="play">Play</button>
