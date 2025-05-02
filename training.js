@@ -8,7 +8,8 @@ const labels = [];
 // --- Список міток для нот і акордів ---
 const notes = [
     "C3", "C#3", "D3", "D#3", "E3", "F3", "F#3",
-    "G3", "G#3", "A3", "A#3", "B3"
+    "G3", "G#3", "A3", "A#3", "B3",
+    "D3_F3_A3", "C3_E3_G3", "E3_G3_B3", "E3_G#3_B3", "C3_F3_A3"
   ];
 
 const allLabels = notes.map(note => {
@@ -38,34 +39,107 @@ return `${note} (${freq.toFixed(2)}Hz)`;
 // ];
 
 function generateNotesForTraining(audioContext, analyser, dataArray) {
-    const notes = allLabels.map(label => label.split(" ")[0]);
+  const notes = allLabels.slice(0, 12).map(label => label.split(" ")[0]);
 
-    const playSequentially = async () => {
-        for (const note of notes) {
-            await new Promise(resolve => {
-                const frequency = getFrequencyByNote(note);
-                playGeneratedNote(audioContext, analyser, dataArray, frequency, 1, () => {
-                    analyser.getByteFrequencyData(dataArray);
-                    const input = Array.from(dataArray).map(v => v / 255);
-                    const hasEnergy = input.some(val => val > 0.01);
-                    if (!hasEnergy) {
-                        console.warn("Пропущено порожній спектр (всі значення ≈ 0)");
-                        return resolve();
-                    }
-                    const label = new Array(12).fill(0);
-                    const index = notes.indexOf(note);
-                    label[index] = 1;
-                    trainingData.push(input);
-                    labels.push(label);
-                    resolve();
-                });
-            });
-            await new Promise(r => setTimeout(r, 200));
-        }
-    };
+  const playSequentially = async () => {
+      for (const note of notes) {
+          const input = await playSoundAndCapture({
+              audioContext, analyser, dataArray,
+              notes: [note],
+              duration: 1
+          });
 
-    return playSequentially();
+          if (input) {
+              // 🔮 Передбачення
+              const predictedIndex = predictNote(input);
+              const predictedLabel = indexToNote(predictedIndex);
+
+              console.log(`🎯 Очікувана нота: ${note}`);
+              console.log(`🔮 Модель передбачила: ${predictedLabel}`);
+
+              if (predictedLabel.startsWith(note)) {
+                  // ✅ Якщо вгадано — додаємо до датасету
+                  const label = new Array(allLabels.length).fill(0);
+                  const index = allLabels.findIndex(l => l.startsWith(note));
+                  if (index !== -1) {
+                      label[index] = 1;
+                      trainingData.push(input);
+                      labels.push(label);
+                      console.log(`✅ Додано правильне передбачення: ${note}`);
+                  }
+              } else {
+                  // ❌ Якщо помилилась — зберігаємо для ручного виправлення
+                  window._lastInput = input;
+                  console.warn(`❌ Модель помилилась. Щоб виправити, введи:
+correctPrediction(window._lastInput, "${note}")`);
+              }
+          }
+
+          // ⏸️ Пауза перед наступною нотою
+          pauseTraining();
+          while (getTrainingPauseState()) {
+              await new Promise(r => setTimeout(r, 100));
+          }
+      }
+  };
+
+  return playSequentially();
 }
+
+
+function generateChordsForTraining(audioContext, analyser, dataArray) {
+  const chords = allLabels.slice(12).map(label => label.split(" ")[0]);
+
+  const playSequentially = async () => {
+      for (const chordName of chords) {
+          const chordNotes = chordName.split("_");
+
+          const input = await playSoundAndCapture({
+              audioContext, analyser, dataArray,
+              notes: chordNotes,
+              duration: 1
+          });
+
+          if (input) {
+              // 🔮 Передбачення
+              const predictedIndex = predictNote(input);
+              const predictedLabel = indexToNote(predictedIndex);
+
+              console.log(`🎯 Очікуваний акорд: ${chordName}`);
+              console.log(`🔮 Модель передбачила: ${predictedLabel}`);
+
+              if (predictedLabel.startsWith(chordName)) {
+                  // ✅ Якщо вгадано — додаємо
+                  const label = new Array(allLabels.length).fill(0);
+                  const index = allLabels.findIndex(l => l.startsWith(chordName));
+                  if (index !== -1) {
+                      label[index] = 1;
+                      trainingData.push(input);
+                      labels.push(label);
+                      console.log(`✅ Додано правильне передбачення: ${chordName}`);
+                  }
+              } else {
+                  // ❌ Якщо помилилась — зберігаємо для виправлення
+                  window._lastInput = input;
+                  console.warn(`❌ Модель помилилась. Щоб виправити, введи:
+correctPrediction(window._lastInput, "${chordName}")`);
+              }
+          }
+
+          // ⏸️ Пауза перед наступним акордом
+          pauseTraining();
+          while (getTrainingPauseState()) {
+              await new Promise(r => setTimeout(r, 100));
+          }
+      }
+  };
+
+  return playSequentially();
+}
+
+
+
+
 
 function getFrequencyByNote(note) {
     const noteMap = { "C": 0, "C#": 1, "D": 2, "D#": 3, "E": 4, "F": 5, "F#": 6, "G": 7, "G#": 8, "A": 9, "A#": 10, "B": 11 };
@@ -87,57 +161,106 @@ function getFrequencyByNote(note) {
     return frequency;
 }
 
-function playGeneratedNote(audioContext, analyser, dataArray, frequency, duration = 1, callback = null) {
-    if (frequency <= 0) {
-        console.warn("Пропущено недійсну частоту:", frequency);
-        callback && callback();
-        return;
-    }
-    const osc = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    osc.type = "sine";
-    osc.frequency.value = frequency;
-    osc.connect(gainNode);
-    gainNode.connect(analyser);
-    gainNode.connect(audioContext.destination);
-    osc.start();
+function playSoundAndCapture({ audioContext, analyser, dataArray, notes, duration = 1, onCaptured }) {
+  if (!Array.isArray(notes) || notes.length === 0) {
+      console.warn("Ноти не передані або порожні");
+      return;
+  }
 
-    // Збираємо спектр лише з потрібного частотного діапазону
-    const sampleRate = audioContext.sampleRate;
-    const fftSize = analyser.fftSize;
-    const binSize = sampleRate / fftSize;
-    const startBin = Math.floor(65 / binSize);
-    const endBin = Math.ceil(2100 / binSize);
+  const gainNode = audioContext.createGain();
+  gainNode.connect(analyser);
+  gainNode.connect(audioContext.destination);
 
-    osc.stop(audioContext.currentTime + duration);
+  const oscillators = notes.map(note => {
+      const osc = audioContext.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = getFrequencyByNote(note);
+      osc.connect(gainNode);
+      return osc;
+  });
 
-    osc.onended = async () => {
-        analyser.getByteFrequencyData(dataArray);
-        const trimmed = Array.from(dataArray).slice(startBin, endBin).map(v => v / 255);
-    
-        // 🔮 Передбачення
-        const predictedIndex = predictNote(trimmed);
-        const predictedNote = indexToNote(predictedIndex);
-        console.log("🔮 Передбачено:", predictedNote);
-    
-        // Зберігаємо дані
-        window._lastInput = trimmed;
-        window._lastPrediction = predictedNote;
-    
-        // Поставити паузу ДО resolve()!
-        pauseTraining();
-    
-        // дочекатися resume
-        while (getTrainingPauseState()) {
-            await new Promise(r => setTimeout(r, 100));
-        }
-    
-        if (callback) callback(trimmed); // тільки після того, як користувач зняв паузу
-    };
+  oscillators.forEach(osc => osc.start());
+  oscillators.forEach(osc => osc.stop(audioContext.currentTime + duration));
+
+  return new Promise((resolve) => {
+      oscillators[0].onended = async () => {
+          analyser.getByteFrequencyData(dataArray);
+
+          const sampleRate = audioContext.sampleRate;
+          const fftSize = analyser.fftSize;
+          const binSize = sampleRate / fftSize;
+          const startBin = Math.floor(65 / binSize);
+          const endBin = Math.ceil(2100 / binSize);
+
+          const trimmed = Array.from(dataArray).slice(startBin, endBin).map(v => v / 255);
+          const hasEnergy = trimmed.some(val => val > 0.01);
+          if (!hasEnergy) {
+              console.warn("Пропущено порожній спектр");
+              resolve(null);
+              return;
+          }
+
+          resolve(trimmed);
+      };
+  });
 }
 
+
+
+
+
+
+// function playGeneratedNote(audioContext, analyser, dataArray, frequency, duration = 1, callback = null) {
+//     if (frequency <= 0) {
+//         console.warn("Пропущено недійсну частоту:", frequency);
+//         callback && callback();
+//         return;
+//     }
+//     const osc = audioContext.createOscillator();
+//     const gainNode = audioContext.createGain();
+//     osc.type = "sine";
+//     osc.frequency.value = frequency;
+//     osc.connect(gainNode);
+//     gainNode.connect(analyser);
+//     gainNode.connect(audioContext.destination);
+//     osc.start();
+
+//     // Збираємо спектр лише з потрібного частотного діапазону
+//     const sampleRate = audioContext.sampleRate;
+//     const fftSize = analyser.fftSize;
+//     const binSize = sampleRate / fftSize;
+//     const startBin = Math.floor(65 / binSize);
+//     const endBin = Math.ceil(2100 / binSize);
+
+//     osc.stop(audioContext.currentTime + duration);
+
+//     osc.onended = async () => {
+//         analyser.getByteFrequencyData(dataArray);
+//         const trimmed = Array.from(dataArray).slice(startBin, endBin).map(v => v / 255);
+    
+//         // 🔮 Передбачення
+//         const predictedIndex = predictNote(trimmed);
+//         const predictedNote = indexToNote(predictedIndex);
+//         console.log("🔮 Передбачено:", predictedNote);
+    
+//         // Зберігаємо дані
+//         window._lastInput = trimmed;
+//         window._lastPrediction = predictedNote;
+    
+//         // Поставити паузу ДО resolve()!
+//         pauseTraining();
+    
+//         // дочекатися resume
+//         while (getTrainingPauseState()) {
+//             await new Promise(r => setTimeout(r, 100));
+//         }
+    
+//         if (callback) callback(trimmed); // тільки після того, як користувач зняв паузу
+//     };
+// }
+
 function createModel(inputSize = null, outputSize = notes.length) {
-    if (!inputSize) inputSize = trainingData[0]?.length || 4096;
+    if (!inputSize) inputSize = trainingData[0]?.length || 348;
     model = tf.sequential();
     model.add(tf.layers.dense({ units: outputSize, activation: 'softmax', inputShape: [inputSize] }));
     model.compile({ optimizer: 'adam', loss: 'categoricalCrossentropy', metrics: ['accuracy'] });
@@ -148,29 +271,37 @@ function createModel(inputSize = null, outputSize = notes.length) {
 
 async function trainModel(epochs = 100, batchSize = 16) {
     if (!trainingData.length || !labels.length) {
-        console.error("Немає даних для тренування");
-        return;
+      console.error("Немає даних для тренування");
+      return;
     }
-    const inputSize = trainingData[0].length;
-    const xs = tf.tensor2d(trainingData, [trainingData.length, inputSize]);
-    const ys = tf.tensor2d(labels);
-
+  
+    initializeCharts();
+  
+    const correctSize = model.inputs[0].shape[1];
+    const cleanData = trainingData.filter(d => d.length === correctSize);
+    const cleanLabels = labels.slice(-cleanData.length);
+  
+    const xs = tf.tensor2d(cleanData, [cleanData.length, correctSize]);
+    const ys = tf.tensor2d(cleanLabels);
+  
     console.log("Починається тренування...");
     await model.fit(xs, ys, {
-        epochs,
-        batchSize,
-        shuffle: true,
-        callbacks: {
-            onEpochEnd: (epoch, logs) => {
-                console.log(`Епоха ${epoch + 1}: точність = ${logs.acc.toFixed(4)}`);
-            }
+      epochs,
+      batchSize,
+      shuffle: true,
+      callbacks: {
+        onEpochEnd: (epoch, logs) => {
+          console.log(`Епоха ${epoch + 1}: точність = ${logs.acc.toFixed(4)}, втрата = ${logs.loss.toFixed(4)}`);
+          updateCharts(epoch + 1, logs.acc, logs.loss);
         }
+      }
     });
+  
     xs.dispose();
     ys.dispose();
-
+  
     console.log("Тренування завершено.");
-}
+  }
 
 function predictNote(inputArray) {
     if (!model) {
@@ -254,3 +385,108 @@ function resetTraining() {
     console.log("🧹 Дані очищено. Готово до нового тренування.");
     createModel(348); // створює нову модель з правильним inputSize, якщо є trainingData[0]
 }
+
+// JS з Chart.js
+
+const canvasAcc = document.createElement('canvas');
+canvasAcc.id = 'accuracyChart';
+canvasAcc.width = 600;
+canvasAcc.height = 300;
+document.body.appendChild(canvasAcc);
+
+const canvasLoss = document.createElement('canvas');
+canvasLoss.id = 'lossChart';
+canvasLoss.width = 600;
+canvasLoss.height = 300;
+document.body.appendChild(canvasLoss);
+
+const accuracyData = [];
+const lossData = [];
+
+let accuracyChart, lossChart;
+
+function initializeCharts() {
+  // Знищення старих графіків, якщо вони існують
+  if (accuracyChart) {
+    accuracyChart.destroy();
+    accuracyChart = null;
+  }
+  if (lossChart) {
+    lossChart.destroy();
+    lossChart = null;
+  }
+
+  // Створення нових графіків
+  accuracyChart = new Chart(document.getElementById('accuracyChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Accuracy',
+        borderColor: '#00C49F',
+        data: [],
+        fill: false
+      }]
+    },
+    options: {
+      responsive: false,
+      scales: { y: { min: 0, max: 1 } }
+    }
+  });
+
+  lossChart = new Chart(document.getElementById('lossChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Loss',
+        borderColor: '#FF8042',
+        data: [],
+        fill: false
+      }]
+    },
+    options: {
+      responsive: false
+    }
+  });
+}
+
+function updateCharts(epoch, acc, loss) {
+  accuracyChart.data.labels.push(epoch);
+  accuracyChart.data.datasets[0].data.push(acc);
+  accuracyChart.update();
+
+  lossChart.data.labels.push(epoch);
+  lossChart.data.datasets[0].data.push(loss);
+  lossChart.update();
+}
+
+async function trainModelWithCharts(model, _, __, epochs = 30, batchSize = 16) {
+    initializeCharts();
+  
+    // Автоматична перевірка розміру вхідних даних
+    const correctSize = model.inputs[0].shape[1];
+    const cleanData = trainingData.filter(d => d.length === correctSize);
+    const cleanLabels = labels.slice(-cleanData.length);
+  
+    const xs = tf.tensor2d(cleanData, [cleanData.length, correctSize]);
+    const ys = tf.tensor2d(cleanLabels);
+
+  await model.fit(xs, ys, {
+    epochs,
+    batchSize,
+    shuffle: true,
+    callbacks: {
+      onEpochEnd: (epoch, logs) => {
+        updateCharts(epoch + 1, logs.acc, logs.loss);
+      }
+    }
+  });
+}
+
+// Додатково можна викликати trainModelWithCharts(...) із model, xs, ys після підготовки
+
+/* Формули для пояснення:
+Loss (Categorical Crossentropy): -∑(y * log(p))
+Accuracy: Кількість правильних передбачень / Загальна кількість
+*/

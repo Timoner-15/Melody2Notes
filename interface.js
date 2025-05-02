@@ -36,6 +36,20 @@ window.onload = function() {
     };
     document.body.appendChild(trainBtn);
 
+    // const chartBtn = document.createElement("button");
+    // chartBtn.textContent = "📊 Тренувати з графіком";
+    // chartBtn.onclick = () => {
+    //     if (!trainingData.length || !labels.length) {
+    //         console.warn("⛔ Немає даних для тренування");
+    //         return;
+    //     }
+    //     const xs = tf.tensor2d(trainingData, [trainingData.length, trainingData[0].length]);
+    //     const ys = tf.tensor2d(labels);
+    //     trainModelWithCharts(model, xs, ys, 30, 16);
+    // };
+    // document.body.appendChild(chartBtn);
+
+
     const predictBtn = document.createElement("button");
     predictBtn.textContent = "Передбачити ноту";
     predictBtn.onclick = () => {
@@ -113,8 +127,11 @@ function initializeAudio(url, file) {
     drawPianoRoll();
     drawWaterfall();
     
-    document.getElementById("train").addEventListener("click", () => {
+    document.getElementById("train_notes").addEventListener("click", () => {
         generateNotesForTraining(audioContext, analyser, dataArray);
+    });
+    document.getElementById("train_chords").addEventListener("click", () => {
+        generateChordsForTraining(audioContext, analyser, dataArray);
     });
     document.getElementById("play").addEventListener("click", () => {
         if (audioElement) {
