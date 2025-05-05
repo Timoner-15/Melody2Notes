@@ -36,19 +36,7 @@ window.onload = function() {
     };
     document.body.appendChild(trainBtn);
 
-    // const chartBtn = document.createElement("button");
-    // chartBtn.textContent = "📊 Тренувати з графіком";
-    // chartBtn.onclick = () => {
-    //     if (!trainingData.length || !labels.length) {
-    //         console.warn("⛔ Немає даних для тренування");
-    //         return;
-    //     }
-    //     const xs = tf.tensor2d(trainingData, [trainingData.length, trainingData[0].length]);
-    //     const ys = tf.tensor2d(labels);
-    //     trainModelWithCharts(model, xs, ys, 30, 16);
-    // };
-    // document.body.appendChild(chartBtn);
-
+    
 
     const predictBtn = document.createElement("button");
     predictBtn.textContent = "Передбачити ноту";
@@ -186,11 +174,19 @@ function draw() {
     canvasCtx.stroke();
 }
 
-function drawPianoRoll(highlightedNote = null) {
+function drawPianoRoll(highlightedNotes = []) {
+    if (!Array.isArray(highlightedNotes)) {
+        highlightedNotes = [highlightedNotes]; // зробити з рядка масив
+    }
+
+    // console.log("🎨 Отримані ноти:", highlightedNotes);
+
+
     if (!pianoRollCtx) {
         console.error("pianoRollCtx is not initialized");
         return;
     }
+
     pianoRollCtx.fillStyle = "#333";
     pianoRollCtx.fillRect(0, 0, pianoRollCanvas.width, pianoRollCanvas.height);
     
@@ -203,31 +199,41 @@ function drawPianoRoll(highlightedNote = null) {
     const whiteKeys = ["C", "D", "E", "F", "G", "A", "B"];
     const blackKeyOffsets = [0.7, 1.7, 3.7, 4.7, 5.7];
     const blackKeyNames = ["C#", "D#", "F#", "G#", "A#"];
-    
+
     // Draw white keys
     for (let oct = 0; oct < numOctaves; oct++) {
         for (let i = 0; i < whiteKeys.length; i++) {
             let note = whiteKeys[i] + (oct + 1);
-            pianoRollCtx.fillStyle = (note === highlightedNote) ? "yellow" : "white";
+            let isHighlighted = highlightedNotes.includes(note);
+            pianoRollCtx.fillStyle = isHighlighted ? "yellow" : "white";
             pianoRollCtx.fillRect((oct * 7 + i) * keyWidth, 0, keyWidth - 2, pianoRollCanvas.height);
             pianoRollCtx.strokeRect((oct * 7 + i) * keyWidth, 0, keyWidth, pianoRollCanvas.height);
         }
     }
-    
+
     // Draw black keys
     for (let oct = 0; oct < numOctaves; oct++) {
         for (let i = 0; i < blackKeyOffsets.length; i++) {
             let note = blackKeyNames[i] + (oct + 1);
             let x = (oct * 7 + blackKeyOffsets[i]) * keyWidth;
-            pianoRollCtx.fillStyle = (note === highlightedNote) ? "yellow" : "black";
+            let isHighlighted = highlightedNotes.includes(note);
+            pianoRollCtx.fillStyle = isHighlighted ? "yellow" : "black";
             pianoRollCtx.fillRect(x, 0, blackKeyWidth, blackKeyHeight);
         }
     }
+
+    //console.log("🔍 Візуалізація підтримує:", whiteKeys.map(k => k + "1"), "... до " + whiteKeys.map(k => k + "4"));
 }
 
-function highlightKey(note) {
-    drawPianoRoll(note);
-}
+
+window.highlightKey = function(labelOrNotes) {
+    const notes = Array.isArray(labelOrNotes)
+      ? labelOrNotes
+      : (labelOrNotes.includes("_") ? labelOrNotes.split("_") : [labelOrNotes]);
+  
+    //console.log("🎹 Підсвітити ці ноти:", notes);
+    drawPianoRoll(notes);
+  };
 
 function updateFileInfo(file) {
     const fileInfoDiv = document.getElementById("fileInfo");
@@ -309,13 +315,19 @@ function drawSpectrums() {
         winCtx.clearRect(0, 0, 600, 150);
         winCtx.beginPath();
         winCtx.moveTo(0, 150);
+    
+        const maxValue = Math.max(...processedData); // знайти найбільше значення
+        const scale = maxValue > 0 ? 1 / maxValue : 1; // нормування
+
         for (let i = 0; i < binCount; i++) {
-            const x = (i / binCount) * 600;
-            const y = 150 - (processedData[i] / 255) * 150;
-            winCtx.lineTo(x, y);
+        const normalized = processedData[i] * scale;
+        const y = 150 - normalized * 150;
+        const x = (i / binCount) * 600;
+        winCtx.lineTo(x, y);
         }
+    
         winCtx.lineTo(600, 150);
-        winCtx.fillStyle = "rgba(255, 200, 0, 0.3)";
+        winCtx.fillStyle = "rgba(255, 200, 0, 0.5)";
         winCtx.fill();
     }
 }
