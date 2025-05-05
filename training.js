@@ -4,6 +4,8 @@ let model;
 // --- Дані для тренування ---
 const trainingData = [];
 const labels = [];
+window.expectedMelody = []; // масив реальних міток
+window.canPredict = true;
 
 // --- Список міток для нот і акордів ---
 const notes = [
@@ -71,7 +73,7 @@ function generateNotesForTraining(audioContext, analyser, dataArray) {
                   // ❌ Якщо помилилась — зберігаємо для ручного виправлення
                   window._lastInput = input;
                   console.warn(`❌ Модель помилилась. Щоб виправити, введи:
-correctPrediction(window._lastInput, "${note}")`);
+                  correctPrediction(window._lastInput, "${note}")`);
               }
           }
 
@@ -122,7 +124,7 @@ function generateChordsForTraining(audioContext, analyser, dataArray) {
                   // ❌ Якщо помилилась — зберігаємо для виправлення
                   window._lastInput = input;
                   console.warn(`❌ Модель помилилась. Щоб виправити, введи:
-correctPrediction(window._lastInput, "${chordName}")`);
+                  correctPrediction(window._lastInput, "${chordName}")`);
               }
           }
 
@@ -137,8 +139,25 @@ correctPrediction(window._lastInput, "${chordName}")`);
   return playSequentially();
 }
 
+function splitDataset(data, labels, trainRatio = 0.8) {
+  const indices = [...data.keys()];
+  tf.util.shuffle(indices);
 
+  const trainSize = Math.floor(data.length * trainRatio);
 
+  const trainData = indices.slice(0, trainSize).map(i => data[i]);
+  const trainLabels = indices.slice(0, trainSize).map(i => labels[i]);
+
+  const testData = indices.slice(trainSize).map(i => data[i]);
+  const testLabels = indices.slice(trainSize).map(i => labels[i]);
+
+  return {
+    trainData,
+    trainLabels,
+    testData,
+    testLabels
+  };
+}
 
 
 function getFrequencyByNote(note) {
@@ -153,7 +172,7 @@ function getFrequencyByNote(note) {
     const semitoneOffset = noteIndex - a4Index;
 
     const frequency = 440 * Math.pow(2, semitoneOffset / 12);
-    console.log(`Нота: ${key}${octave}, семітон: ${semitoneOffset}, частота: ${frequency.toFixed(2)} Hz`);
+    // console.log(`Нота: ${key}${octave}, семітон: ${semitoneOffset}, частота: ${frequency.toFixed(2)} Hz`);
 
     // Обмеження діапазону
     if (frequency < 60 || frequency > 260) return 0;
@@ -205,60 +224,6 @@ function playSoundAndCapture({ audioContext, analyser, dataArray, notes, duratio
   });
 }
 
-
-
-
-
-
-// function playGeneratedNote(audioContext, analyser, dataArray, frequency, duration = 1, callback = null) {
-//     if (frequency <= 0) {
-//         console.warn("Пропущено недійсну частоту:", frequency);
-//         callback && callback();
-//         return;
-//     }
-//     const osc = audioContext.createOscillator();
-//     const gainNode = audioContext.createGain();
-//     osc.type = "sine";
-//     osc.frequency.value = frequency;
-//     osc.connect(gainNode);
-//     gainNode.connect(analyser);
-//     gainNode.connect(audioContext.destination);
-//     osc.start();
-
-//     // Збираємо спектр лише з потрібного частотного діапазону
-//     const sampleRate = audioContext.sampleRate;
-//     const fftSize = analyser.fftSize;
-//     const binSize = sampleRate / fftSize;
-//     const startBin = Math.floor(65 / binSize);
-//     const endBin = Math.ceil(2100 / binSize);
-
-//     osc.stop(audioContext.currentTime + duration);
-
-//     osc.onended = async () => {
-//         analyser.getByteFrequencyData(dataArray);
-//         const trimmed = Array.from(dataArray).slice(startBin, endBin).map(v => v / 255);
-    
-//         // 🔮 Передбачення
-//         const predictedIndex = predictNote(trimmed);
-//         const predictedNote = indexToNote(predictedIndex);
-//         console.log("🔮 Передбачено:", predictedNote);
-    
-//         // Зберігаємо дані
-//         window._lastInput = trimmed;
-//         window._lastPrediction = predictedNote;
-    
-//         // Поставити паузу ДО resolve()!
-//         pauseTraining();
-    
-//         // дочекатися resume
-//         while (getTrainingPauseState()) {
-//             await new Promise(r => setTimeout(r, 100));
-//         }
-    
-//         if (callback) callback(trimmed); // тільки після того, як користувач зняв паузу
-//     };
-// }
-
 function createModel(inputSize = null, outputSize = notes.length) {
     if (!inputSize) inputSize = trainingData[0]?.length || 348;
     model = tf.sequential();
@@ -288,6 +253,7 @@ async function trainModel(epochs = 100, batchSize = 16) {
     await model.fit(xs, ys, {
       epochs,
       batchSize,
+      validationSplit: 0.2,
       shuffle: true,
       callbacks: {
         onEpochEnd: (epoch, logs) => {
@@ -462,15 +428,17 @@ function updateCharts(epoch, acc, loss) {
 }
 
 async function trainModelWithCharts(model, _, __, epochs = 30, batchSize = 16) {
-    initializeCharts();
-  
-    // Автоматична перевірка розміру вхідних даних
-    const correctSize = model.inputs[0].shape[1];
-    const cleanData = trainingData.filter(d => d.length === correctSize);
-    const cleanLabels = labels.slice(-cleanData.length);
-  
-    const xs = tf.tensor2d(cleanData, [cleanData.length, correctSize]);
-    const ys = tf.tensor2d(cleanLabels);
+  initializeCharts();
+
+  // Автоматична перевірка розміру вхідних даних
+  const correctSize = model.inputs[0].shape[1];
+  const cleanData = trainingData.filter(d => d.length === correctSize);
+  const cleanLabels = labels.slice(-cleanData.length);
+
+  const { trainData, trainLabels, testData, testLabels } = splitDataset(trainingData, labels);
+
+  const xs = tf.tensor2d(trainData);
+  const ys = tf.tensor2d(trainLabels);
 
   await model.fit(xs, ys, {
     epochs,
@@ -482,6 +450,18 @@ async function trainModelWithCharts(model, _, __, epochs = 30, batchSize = 16) {
       }
     }
   });
+
+  // 📊 Оцінка моделі на невідомих даних
+  const xTest = tf.tensor2d(testData);
+  const yTest = tf.tensor2d(testLabels);
+
+  const evalResult = model.evaluate(xTest, yTest);
+
+  evalResult.forEach((metric, i) => {
+    metric.data().then(data => {
+      console.log(`📊 Тестова метрика #${i}: ${data}`);
+    });
+  });
 }
 
 // Додатково можна викликати trainModelWithCharts(...) із model, xs, ys після підготовки
@@ -490,3 +470,134 @@ async function trainModelWithCharts(model, _, __, epochs = 30, batchSize = 16) {
 Loss (Categorical Crossentropy): -∑(y * log(p))
 Accuracy: Кількість правильних передбачень / Загальна кількість
 */
+
+
+// ГЕНЕРАЦІЯ МЕЛОДІЇ із ДЕКІЛЬКОХ НОТ ТА АКОРДІВ
+
+function playGeneratedMelody(audioContext, analyser, dataArray, count = 8, interval = 1000) {
+  const labels = allLabels.map(label => label.split(" ")[0]);
+  const sequence = [];
+
+  window.expectedMelody = [];
+
+  for (let i = 0; i < count; i++) {
+    const randomLabel = labels[Math.floor(Math.random() * labels.length)];
+    sequence.push(randomLabel);
+    window.expectedMelody.push(randomLabel);
+  }
+
+  console.log("🎼 Згенерована мелодія:", sequence);
+
+  let index = 0;
+
+  const intervalId = setInterval(() => {
+    if (index >= sequence.length) {
+      clearInterval(intervalId);
+      console.log("🏁 Мелодія завершена");
+      return;
+    }
+
+    const label = sequence[index];
+    const notes = label.includes("_") ? label.split("_") : [label];
+
+    console.log(`🎵 Граємо (${index + 1}/${sequence.length}): ${label}`);
+
+    window.canPredict = true; // 🔹 дозволяємо передбачити цю ноту
+
+    playSoundAndCapture({
+      audioContext, analyser, dataArray,
+      notes,
+      duration: 0.9
+    });
+
+    index++;
+  }, interval);
+}
+
+
+
+
+
+// розпізнавання декількох нот та акордів у таймлапсі
+let melodyRecognitionInterval = null;
+let melodyTimeline = [];
+
+function startMelodyRecognition(audioContext, analyser, dataArray, intervalMs = 500) {
+  if (melodyRecognitionInterval !== null) {
+    console.warn("⏱ Розпізнавання вже запущено.");
+    return;
+  }
+
+  melodyTimeline = [];
+  window.predictedMelody = [];
+
+  melodyRecognitionInterval = setInterval(() => {
+    analyser.getByteFrequencyData(dataArray);
+
+    const sampleRate = audioContext.sampleRate;
+    const fftSize = analyser.fftSize;
+    const binSize = sampleRate / fftSize;
+    const startBin = Math.floor(65 / binSize);
+    const endBin = Math.ceil(2100 / binSize);
+
+    const trimmed = Array.from(dataArray).slice(startBin, endBin).map(v => v / 255);
+    const hasEnergy = trimmed.some(val => val > 0.01);
+    if (!hasEnergy || !window.canPredict) return;
+
+    const predictedIndex = predictNote(trimmed);
+    const predictedLabel = indexToNote(predictedIndex);
+    const timestamp = (performance.now() / 1000).toFixed(2);
+
+    melodyTimeline.push({ time: timestamp, label: predictedLabel });
+
+    console.log(`🎵 ${timestamp}s → ${predictedLabel}`);
+
+    const labelOnly = predictedLabel.split(" ")[0];
+    window.predictedMelody.push(labelOnly);
+    window.canPredict = false; // 🔒 блокуємо подальші передбачення для цієї ноти
+
+    const notes = labelOnly.includes("_") ? labelOnly.split("_") : [labelOnly];
+    if (typeof highlightKey === "function") {
+      highlightKey(notes);
+    }
+  }, intervalMs);
+
+  console.log("▶️ Запущено розпізнавання мелодії...");
+}
+
+
+
+function stopMelodyRecognition() {
+  if (melodyRecognitionInterval !== null) {
+    clearInterval(melodyRecognitionInterval);
+    melodyRecognitionInterval = null;
+    console.log("⏹ Розпізнавання зупинено.");
+    console.log("📄 Результат:", melodyTimeline);
+  } else {
+    console.warn("❗ Розпізнавання ще не було запущено.");
+  }
+}
+
+function evaluateMelodyAccuracy() {
+  if (!expectedMelody || !predictedMelody) {
+    console.warn("Мелодія ще не згенерована або не передбачена.");
+    return;
+  }
+
+  if (expectedMelody.length !== predictedMelody.length) {
+    console.warn("⚠️ Довжини не збігаються:", expectedMelody.length, "vs", predictedMelody.length);
+  }
+
+  let correct = 0;
+  const len = Math.min(expectedMelody.length, predictedMelody.length);
+  for (let i = 0; i < len; i++) {
+    if (expectedMelody[i] === predictedMelody[i]) {
+      correct++;
+    } else {
+      console.log(`❌ ${i + 1}. Очікувалось: ${expectedMelody[i]} → Отримано: ${predictedMelody[i]}`);
+    }
+  }
+
+  const accuracy = ((correct / len) * 100).toFixed(2);
+  console.log(`🎯 Точність: ${correct} з ${len} (${accuracy}%)`);
+}
