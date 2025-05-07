@@ -5,29 +5,86 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio Player with Visualization</title>
+    <title>Melody Recognizer</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; }
-        canvas { width: 100%; background: black; display: block; margin: 10px auto; }
-        input[type="range"] { width: 80%; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1e1e2f;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        h2 {
+            margin-bottom: 1rem;
+            color: #ffffff;
+        }
+
+        button {
+            background: #3b82f6;
+            border: none;
+            color: white;
+            padding: 10px 16px;
+            margin: 6px 5px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #2563eb;
+        }
+
+        input[type="range"] {
+            width: 60%;
+            margin: 1rem auto;
+        }
+
+        canvas {
+            background: #111;
+            border-radius: 8px;
+            margin: 10px auto;
+            display: block;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        #visualizer {
+            width: 60%;
+            height: 50px;
+        }
+
+        #fileInfo {
+            margin-top: 1rem;
+            font-size: 0.95rem;
+            color: #cfcfcf;
+        }
     </style>
 </head>
 <body>
-    <h2>Custom Audio Player</h2>
+    <h2>🎶 Melody Recognizer</h2>
+
     <input type="file" id="audioFile" accept="audio/mp3">
-    <button id="train_notes">Train Model Notes</button>
-    <button id="train_chords">Train Model Chords</button>
-    <canvas id="visualizer" height="25"></canvas>
-    <br>
-    <button id="play">Play</button>
-    <button id="pause">Pause</button>
-    <button id="restart">Restart</button>
+    <br><br>
+
+    <button id="train_notes">🎼 Тренувати ноти</button>
+    <button id="train_chords">🎹 Тренувати акорди</button>
     <button onclick="saveModel()">💾 Зберегти модель</button>
     <button onclick="loadModel()">📥 Завантажити модель</button>
     <br><br>
-    <input type="range" id="progress" min="0" max="100" value="0" step="0.1">
+
+    <button id="play">▶️ Відтворити</button>
+    <button id="pause">⏸️ Пауза</button>
+    <button id="restart">🔁 Заново</button>
+
     <br><br>
+    <canvas id="visualizer"></canvas>
+
+    <input type="range" id="progress" min="0" max="100" value="0" step="0.1">
+
     <div id="fileInfo"></div>
+
     <script src="interface.js"></script>
     <script src="training.js"></script>
 </body>
