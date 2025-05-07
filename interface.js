@@ -190,7 +190,9 @@ function drawPianoRoll(highlightedNotes = []) {
     pianoRollCtx.fillStyle = "#333";
     pianoRollCtx.fillRect(0, 0, pianoRollCanvas.width, pianoRollCanvas.height);
     
-    const numOctaves = 4;
+    const startOctave = 3;
+    const endOctave = 3;
+    const numOctaves = endOctave - startOctave + 1;
     const totalKeys = numOctaves * 12;
     const keyWidth = pianoRollCanvas.width / (numOctaves * 7);
     const blackKeyWidth = keyWidth * 0.6;
@@ -201,21 +203,21 @@ function drawPianoRoll(highlightedNotes = []) {
     const blackKeyNames = ["C#", "D#", "F#", "G#", "A#"];
 
     // Draw white keys
-    for (let oct = 0; oct < numOctaves; oct++) {
+    for (let oct = startOctave; oct <= endOctave; oct++) {
         for (let i = 0; i < whiteKeys.length; i++) {
-            let note = whiteKeys[i] + (oct + 1);
+            let note = whiteKeys[i] + oct;
             let isHighlighted = highlightedNotes.includes(note);
             pianoRollCtx.fillStyle = isHighlighted ? "yellow" : "white";
-            pianoRollCtx.fillRect((oct * 7 + i) * keyWidth, 0, keyWidth - 2, pianoRollCanvas.height);
-            pianoRollCtx.strokeRect((oct * 7 + i) * keyWidth, 0, keyWidth, pianoRollCanvas.height);
+            pianoRollCtx.fillRect(((oct - startOctave) * 7 + i) * keyWidth, 0, keyWidth - 2, pianoRollCanvas.height);
+            pianoRollCtx.strokeRect(((oct - startOctave) * 7 + i) * keyWidth, 0, keyWidth, pianoRollCanvas.height);
         }
     }
 
     // Draw black keys
-    for (let oct = 0; oct < numOctaves; oct++) {
+    for (let oct = startOctave; oct <= endOctave; oct++) {
         for (let i = 0; i < blackKeyOffsets.length; i++) {
-            let note = blackKeyNames[i] + (oct + 1);
-            let x = (oct * 7 + blackKeyOffsets[i]) * keyWidth;
+            let note = blackKeyNames[i] + oct;
+            let x = ((oct - startOctave) * 7 + blackKeyOffsets[i]) * keyWidth;
             let isHighlighted = highlightedNotes.includes(note);
             pianoRollCtx.fillStyle = isHighlighted ? "yellow" : "black";
             pianoRollCtx.fillRect(x, 0, blackKeyWidth, blackKeyHeight);
