@@ -1,76 +1,14 @@
 const tf = window.tf || {};
-// console.log(audioContext);
 let audioElement, sourceNode, analyser, dataArray, canvas, canvasCtx, pianoRollCanvas, pianoRollCtx, waterfallCanvas, waterfallCtx;
 let lastLogged = 0; // timestamp in ms
 
 // Додаємо новий canvas для частотного водоспаду
 window.onload = function() {
-    const windowSelect = document.createElement("select");
-    windowSelect.id = "windowFunction";
-    ["Hamming", "Blackman-Harris", "Hann"].forEach(name => {
-        const opt = document.createElement("option");
-        opt.value = name;
-        opt.textContent = name;
-        windowSelect.appendChild(opt);
-    });
-    document.body.insertBefore(windowSelect, document.body.firstChild);
-
-    // --- Add Save Training Data Button ---
-    const saveBtn = document.createElement("button");
-    saveBtn.textContent = "Зберегти Training Data";
-    saveBtn.onclick = () => {
-        const blob = new Blob([
-            JSON.stringify({ trainingData, labels }, null, 2)
-        ], { type: "application/json" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "training_data.json";
-        link.click();
-    };
-    document.body.insertBefore(saveBtn, windowSelect.nextSibling);
-
-    const trainBtn = document.createElement("button");
-    trainBtn.textContent = "Тренувати модель";
-    trainBtn.onclick = () => {
-        trainModel();
-    };
-    document.body.appendChild(trainBtn);
-
-    
-
-    const predictBtn = document.createElement("button");
-    predictBtn.textContent = "Передбачити ноту";
-    predictBtn.onclick = () => {
-        analyser.getByteFrequencyData(dataArray);
-        const input = Array.from(dataArray).map(v => v / 255);
-        const index = predictNote(input);
-        const note = indexToNote(index);
-        alert("Передбачена нота: " + note);
-        highlightKey(note);
-    };
-    document.body.appendChild(predictBtn);
-
     waterfallCanvas = document.createElement("canvas");
     waterfallCanvas.width = 600;
     waterfallCanvas.height = 100;
     waterfallCanvas.style.background = "black";
     document.body.appendChild(waterfallCanvas);
-
-     // Додаємо canvas для сирого спектру
-     const rawSpectrumCanvas = document.createElement("canvas");
-     rawSpectrumCanvas.id = "rawSpectrumCanvas";
-     rawSpectrumCanvas.width = 600;
-     rawSpectrumCanvas.height = 150;
-     rawSpectrumCanvas.style.background = "#111";
-     document.body.appendChild(rawSpectrumCanvas);
- 
-     // Додаємо canvas для спектру після віконної функції
-     const windowedSpectrumCanvas = document.createElement("canvas");
-     windowedSpectrumCanvas.id = "windowedSpectrumCanvas";
-     windowedSpectrumCanvas.width = 600;
-     windowedSpectrumCanvas.height = 150;
-     windowedSpectrumCanvas.style.background = "#111";
-     document.body.appendChild(windowedSpectrumCanvas);
  
      // Стартуємо анімацію спектрів
      drawSpectrums();
@@ -78,11 +16,32 @@ window.onload = function() {
     waterfallCtx = waterfallCanvas.getContext("2d", { willReadFrequently: true });
 };
 
-document.getElementById('audioFile').addEventListener('change', function(event) {
+function activateApp() {
+    document.querySelectorAll("button").forEach(btn => btn.disabled = false);
+  
+    if (typeof initializeCharts === "function") initializeCharts();
+    if (typeof drawPianoRoll === "function") drawPianoRoll();
+    if (typeof drawSpectrums === "function") drawSpectrums();
+    if (typeof drawWaterfall === "function") drawWaterfall();
+    if (typeof loadFromLocal === "function") loadFromLocal();
+}
+
+document.getElementById('audioFile').addEventListener('change', async function(event) {
     const file = event.target.files[0];
-    if (file) {
-        const objectURL = URL.createObjectURL(file);
-        initializeAudio(objectURL, file);
+    if (!file) return;
+  
+    const objectURL = URL.createObjectURL(file);
+  
+    // 🎵 1. Ініціалізуємо аудіо-програвач
+    initializeAudio(objectURL, file);
+  
+    // 🧠 2. Завантажуємо й компілюємо модель
+    try {
+      await loadModel();         // tf.loadLayersModel + .compile
+      activateApp();             // розблокування UI, ініціалізація графіків/канвасів
+      console.log("✅ Все готово");
+    } catch (err) {
+      console.error("❌ Помилка при завантаженні моделі:", err);
     }
 });
 
@@ -104,28 +63,47 @@ function initializeAudio(url, file) {
     canvas = document.getElementById("visualizer");
     canvasCtx = canvas.getContext("2d");
     
-    pianoRollCanvas = document.createElement("canvas");
-    pianoRollCanvas.width = 600;
-    pianoRollCanvas.height = 200;
-    pianoRollCanvas.style.background = "#333";
-    document.body.appendChild(pianoRollCanvas);
-    pianoRollCtx = pianoRollCanvas.getContext("2d");
+    if (!pianoRollCanvas) {
+        pianoRollCanvas = document.createElement("canvas");
+        pianoRollCanvas.width = 600;
+        pianoRollCanvas.height = 200;
+        pianoRollCanvas.style.background = "#333";
+        document.body.appendChild(pianoRollCanvas);
+        pianoRollCtx = pianoRollCanvas.getContext("2d");
+    } else {
+        // якщо існує — просто очищаємо
+        pianoRollCtx.clearRect(0, 0, pianoRollCanvas.width, pianoRollCanvas.height);
+    }
+
+    audioElement.addEventListener("play", () => {
+        if (!window._melodyStarted) {
+            window._melodyStarted = true;
+            window.audioStartTime = performance.now(); // 🕒 фіксуємо старт
+            console.log("▶️ Аудіо запущено — старт розпізнавання");
+            startMelodyRecognition(audioContext, analyser, dataArray);
+        }
+    });
     
     draw();
     drawPianoRoll();
     drawWaterfall();
     
-    document.getElementById("train_notes").addEventListener("click", () => {
-        generateNotesForTraining(audioContext, analyser, dataArray);
-    });
-    document.getElementById("train_chords").addEventListener("click", () => {
-        generateChordsForTraining(audioContext, analyser, dataArray);
-    });
     document.getElementById("play").addEventListener("click", () => {
         if (audioElement) {
-            audioElement.play();
+          // 🧼 Очистити лог
+          const logBox = document.getElementById("predictionLog");
+          if (logBox) {
+            logBox.innerHTML = "<strong>📋 Розпізнані акорди / ноти:</strong>";
+          }
+      
+          // ⏱ Скинути стартовий час
+          window.audioStartTime = null;
+          window._melodyStarted = false; // дозволити перезапуск
+      
+          // ▶️ Старт аудіо
+          audioElement.play();
         }
-    });
+      });
     document.getElementById("pause").addEventListener("click", () => {
         if (audioElement) {
             audioElement.pause();
@@ -133,8 +111,23 @@ function initializeAudio(url, file) {
     });
     document.getElementById("restart").addEventListener("click", () => {
         if (audioElement) {
-        audioElement.currentTime = 0;
-        audioElement.play();
+            audioElement.currentTime = 0;
+            audioElement.play();
+        }
+    });
+    document.getElementById("generateAndRecognize").addEventListener("click", () => {
+        if (audioContext && analyser && dataArray) {
+            // Очищаємо поле передбачень
+            const logBox = document.getElementById("predictionLog");
+            if (logBox) {
+            logBox.innerHTML = "<strong>📋 Розпізнані акорди / ноти:</strong>";
+            }
+
+            console.log("🎬 Стартуємо генерацію та розпізнавання...");
+            startMelodyRecognition(audioContext, analyser, dataArray);
+            playGeneratedMelody(audioContext, analyser, dataArray, 8);
+        } else {
+            console.warn("⚠️ Аудіо або аналізатор ще не ініціалізовано.");
         }
     });
     
@@ -179,9 +172,6 @@ function drawPianoRoll(highlightedNotes = []) {
         highlightedNotes = [highlightedNotes]; // зробити з рядка масив
     }
 
-    // console.log("🎨 Отримані ноти:", highlightedNotes);
-
-
     if (!pianoRollCtx) {
         console.error("pianoRollCtx is not initialized");
         return;
@@ -223,10 +213,27 @@ function drawPianoRoll(highlightedNotes = []) {
             pianoRollCtx.fillRect(x, 0, blackKeyWidth, blackKeyHeight);
         }
     }
-
-    //console.log("🔍 Візуалізація підтримує:", whiteKeys.map(k => k + "1"), "... до " + whiteKeys.map(k => k + "4"));
 }
 
+
+function logPredictionToText(timestamp, predictedLabel, confidence, played = null) {
+    const logBox = document.getElementById("predictionLog");
+  
+    // 🕒 коригований час відносно старту аудіо
+    const offset = window.audioStartTime || 0;
+    const relativeTime = ((timestamp * 1000 - offset) / 1000).toFixed(2);
+  
+    const time = `${relativeTime}s`;
+    const pred = `${predictedLabel} (${(confidence * 100).toFixed(1)}%)`;
+  
+    let line = `🎵 ${time} → ${pred}`;
+    if (played) {
+      line = `▶️ ${time} — зіграно: ${played} | передбачено: ${pred}`;
+    }
+  
+    logBox.innerHTML += `\n${line}`;
+    logBox.scrollTop = logBox.scrollHeight;
+}
 
 window.highlightKey = function(labelOrNotes) {
     const notes = Array.isArray(labelOrNotes)

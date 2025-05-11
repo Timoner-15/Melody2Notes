@@ -4,6 +4,7 @@ let model;
 // --- Дані для тренування ---
 const trainingData = [];
 const labels = [];
+const labelNames = []; // <--- ДОДАНО
 window.expectedMelody = []; // масив реальних міток
 window.canPredict = true;
 
@@ -11,133 +12,13 @@ window.canPredict = true;
 const notes = [
     "C3", "C#3", "D3", "D#3", "E3", "F3", "F#3",
     "G3", "G#3", "A3", "A#3", "B3",
-    "D3_F3_A3", "C3_E3_G3", "E3_G3_B3", "E3_G#3_B3", "C3_F3_A3"
+    "D3_F3_A3", "C3_E3_G3", "E3_G3_B3", "E3_G#3_B3", "C3_F3_A3", "D3_G3_B3", "C3_D#3_G3", "C3_G3_B3", "C3_F3_B3"
   ];
 
 const allLabels = notes.map(note => {
 const freq = getFrequencyByNote(note);
 return `${note} (${freq.toFixed(2)}Hz)`;
 });
-
-// const allLabels = [
-//     // 48 нот (від C3 до B6, частоти в Гц)
-//     "C3 (130.81Hz)","C#3 (138.59Hz)","D3 (146.83Hz)","D#3 (155.56Hz)","E3 (164.81Hz)","F3 (174.61Hz)","F#3 (185.00Hz)","G3 (196.00Hz)","G#3 (207.65Hz)","A3 (220.00Hz)","A#3 (233.08Hz)","B3 (246.94Hz)"
-//     // "C4 (261.63Hz)","C#4 (277.18Hz)","D4 (293.66Hz)","D#4 (311.13Hz)","E4 (329.63Hz)","F4 (349.23Hz)","F#4 (369.99Hz)","G4 (392.00Hz)","G#4 (415.30Hz)","A4 (440.00Hz)","A#4 (466.16Hz)","B4 (493.88Hz)",
-//     // "C5 (523.25Hz)","C#5 (554.37Hz)","D5 (587.33Hz)","D#5 (622.25Hz)","E5 (659.25Hz)","F5 (698.46Hz)","F#5 (739.99Hz)","G5 (783.99Hz)","G#5 (830.61Hz)","A5 (880.00Hz)","A#5 (932.33Hz)","B5 (987.77Hz)",
-//     // "C6 (1046.50Hz)","C#6 (1108.73Hz)","D6 (1174.66Hz)","D#6 (1244.51Hz)","E6 (1318.51Hz)","F6 (1396.91Hz)","F#6 (1479.98Hz)","G6 (1567.98Hz)","G#6 (1661.22Hz)","A6 (1760.00Hz)","A#6 (1864.66Hz)","B6 (1975.53Hz)",
-//     // "C7 (2093.00Hz)"
-
-//     // 132 акорди, випадково вибрані (назви умовні, можуть бути будь-які комбінації)
-//     // "C_E_G", "D_F_A", "E_G_B", "F_A_C5", "G_B_D5", "A_C5_E5", "B_D5_F#5", "C#4_E4_A4",
-//     // "D#4_G4_B4", "F#4_A4_C5", "G#4_C5_E5", "A#4_D5_F5", "C5_E5_G5", "D5_F5_A5", "E5_G5_B5",
-//     // "F5_A5_C6", "G5_B5_D6", "A5_C6_E6", "B5_D6_F#6", "C6_E6_G6", "D6_F6_A6", "E6_G6_B6",
-//     // "C_E_G#", "D_F#_A#", "E_G#_B", "F#_A_C#5", "G#_B_D#5", "A#_C#5_E5", "B_D#5_F#5",
-//     // "C4_E4_F#4", "D4_F#4_G4", "E4_G4_A4", "F4_A4_B4", "G4_B4_C5", "A4_C5_D5", "B4_D5_E5",
-//     // "C5_E5_F#5", "D5_F#5_G5", "E5_G5_A5", "F5_A5_B5", "G5_B5_C6", "A5_C6_D6", "B5_D6_E6",
-//     // "C3_E3_G3", "C4_E4_G4", "C5_E5_G5", "D3_F3_A3", "D4_F4_A4", "D5_F5_A5",
-//     // "E3_G3_B3", "E4_G4_B4", "E5_G5_B5", "F3_A3_C4", "F4_A4_C5", "F5_A5_C6",
-//     // "G3_B3_D4", "G4_B4_D5", "G5_B5_D6", "A3_C4_E4", "A4_C5_E5", "A5_C6_E6",
-//     // "B3_D4_F#4", "B4_D5_F#5", "B5_D6_F#6"
-// ];
-
-// function generateNotesForTraining(audioContext, analyser, dataArray) {
-//   const notes = allLabels.slice(0, 12).map(label => label.split(" ")[0]);
-
-//   const playSequentially = async () => {
-//       for (const note of notes) {
-//           const input = await playSoundAndCapture({
-//               audioContext, analyser, dataArray,
-//               notes: [note],
-//               duration: 1
-//           });
-
-//           if (input) {
-//               // 🔮 Передбачення
-//               const predictedIndex = predictNote(input);
-//               const predictedLabel = indexToNote(predictedIndex);
-
-//               console.log(`🎯 Очікувана нота: ${note}`);
-//               console.log(`🔮 Модель передбачила: ${predictedLabel}`);
-
-//               if (predictedLabel.startsWith(note)) {
-//                   // ✅ Якщо вгадано — додаємо до датасету
-//                   const label = new Array(allLabels.length).fill(0);
-//                   const index = allLabels.findIndex(l => l.startsWith(note));
-//                   if (index !== -1) {
-//                       label[index] = 1;
-//                       trainingData.push(input);
-//                       labels.push(label);
-//                       console.log(`✅ Додано правильне передбачення: ${note}`);
-//                   }
-//               } else {
-//                   // ❌ Якщо помилилась — зберігаємо для ручного виправлення
-//                   window._lastInput = input;
-//                   console.warn(`❌ Модель помилилась. Щоб виправити, введи:
-//                   correctPrediction(window._lastInput, "${note}")`);
-//               }
-//           }
-
-//           // ⏸️ Пауза перед наступною нотою
-//           pauseTraining();
-//           while (getTrainingPauseState()) {
-//               await new Promise(r => setTimeout(r, 100));
-//           }
-//       }
-//   };
-
-//   return playSequentially();
-// }
-
-
-// function generateChordsForTraining(audioContext, analyser, dataArray) {
-//   const chords = allLabels.slice(12).map(label => label.split(" ")[0]);
-
-//   const playSequentially = async () => {
-//       for (const chordName of chords) {
-//           const chordNotes = chordName.split("_");
-
-//           const input = await playSoundAndCapture({
-//               audioContext, analyser, dataArray,
-//               notes: chordNotes,
-//               duration: 1
-//           });
-
-//           if (input) {
-//               // 🔮 Передбачення
-//               const predictedIndex = predictNote(input);
-//               const predictedLabel = indexToNote(predictedIndex);
-
-//               console.log(`🎯 Очікуваний акорд: ${chordName}`);
-//               console.log(`🔮 Модель передбачила: ${predictedLabel}`);
-
-//               if (predictedLabel.startsWith(chordName)) {
-//                   // ✅ Якщо вгадано — додаємо
-//                   const label = new Array(allLabels.length).fill(0);
-//                   const index = allLabels.findIndex(l => l.startsWith(chordName));
-//                   if (index !== -1) {
-//                       label[index] = 1;
-//                       trainingData.push(input);
-//                       labels.push(label);
-//                       console.log(`✅ Додано правильне передбачення: ${chordName}`);
-//                   }
-//               } else {
-//                   // ❌ Якщо помилилась — зберігаємо для виправлення
-//                   window._lastInput = input;
-//                   console.warn(`❌ Модель помилилась. Щоб виправити, введи:
-//                   correctPrediction(window._lastInput, "${chordName}")`);
-//               }
-//           }
-
-//           // ⏸️ Пауза перед наступним акордом
-//           pauseTraining();
-//           while (getTrainingPauseState()) {
-//               await new Promise(r => setTimeout(r, 100));
-//           }
-//       }
-//   };
-
-//   return playSequentially();
-// }
 
 function generateNotesForTraining(audioContext, analyser, dataArray) {
   const notes = allLabels.slice(0, 12).map(label => label.split(" ")[0]);
@@ -157,6 +38,7 @@ function generateNotesForTraining(audioContext, analyser, dataArray) {
           label[index] = 1;
           trainingData.push(input);
           labels.push(label);
+          labelNames.push(note);
           console.log(`🎼 Додано: ${note}`);
         }
       }
@@ -186,6 +68,7 @@ function generateChordsForTraining(audioContext, analyser, dataArray) {
           label[index] = 1;
           trainingData.push(input);
           labels.push(label);
+          labelNames.push(chordName);
           console.log(`🎹 Додано: ${chordName}`);
         }
       }
@@ -288,7 +171,7 @@ function playSoundAndCapture({ audioContext, analyser, dataArray, notes, duratio
               return;
           }
 
-          resolve(noisyTrimmed);
+          resolve(trimmed);
       };
   });
 }
@@ -326,7 +209,7 @@ function createModel(inputSize = null, outputSize = notes.length) {
   model.summary();
 }
 
-async function trainModel(epochs = 200, batchSize = 16) {
+async function trainModel(epochs = 200, batchSize = 20) {
     if (!trainingData.length || !labels.length) {
       console.error("Немає даних для тренування");
       return;
@@ -458,6 +341,9 @@ canvasLoss.width = 600;
 canvasLoss.height = 300;
 document.body.appendChild(canvasLoss);
 
+canvasAcc.style.display = "none";
+canvasLoss.style.display = "none";
+
 const accuracyData = [];
 const lossData = [];
 
@@ -528,7 +414,7 @@ function updateCharts(epoch, trainAcc, valAcc) {
 }
 
 
-async function trainModelWithCharts(model, _, __, epochs = 30, batchSize = 16) {
+async function trainModelWithCharts(model, _, __, epochs = 30, batchSize = 20) {
   initializeCharts();
 
   // Автоматична перевірка розміру вхідних даних
@@ -549,17 +435,17 @@ async function trainModelWithCharts(model, _, __, epochs = 30, batchSize = 16) {
     callbacks: {
       onEpochEnd: (epoch, logs) => {
         updateCharts(epoch + 1, logs.acc, logs.val_acc);
+        console.log(`Епоха ${epoch + 1}: точність = ${logs.acc.toFixed(4)}, втрата = ${logs.loss.toFixed(4)}, валідація = ${logs.val_acc.toFixed(4)}`);
       }
     }
   });
 
   // 🧠 Після тренування — вивід латентного простору
-  const labelsOnly = allLabels.slice(0, cleanData.length).map(label => label.split(" ")[0]);
-
   const latentVectors = extractLatentVectors(model, cleanData);
   const reduced = reduceTo2D(latentVectors);
 
-  exportLatentToCSV(reduced, labelsOnly);
+  // використовуємо labelNames, які відповідають усім trainingData
+  exportLatentToCSV(reduced, labelNames.slice(-cleanData.length)); // <--- ВАЖЛИВО
 
   // 📊 Оцінка моделі на невідомих даних
   const xTest = tf.tensor2d(testData);
@@ -573,14 +459,6 @@ async function trainModelWithCharts(model, _, __, epochs = 30, batchSize = 16) {
     });
   });
 }
-
-// Додатково можна викликати trainModelWithCharts(...) із model, xs, ys після підготовки
-
-/* Формули для пояснення:
-Loss (Categorical Crossentropy): -∑(y * log(p))
-Accuracy: Кількість правильних передбачень / Загальна кількість
-*/
-
 
 // ГЕНЕРАЦІЯ МЕЛОДІЇ із ДЕКІЛЬКОХ НОТ ТА АКОРДІВ
 
@@ -640,8 +518,11 @@ function startMelodyRecognition(audioContext, analyser, dataArray, intervalMs = 
 
   melodyTimeline = [];
   window.predictedMelody = [];
+  window.canPredict = true;
 
   melodyRecognitionInterval = setInterval(() => {
+    if (!window.canPredict) return;
+
     analyser.getByteFrequencyData(dataArray);
 
     const sampleRate = audioContext.sampleRate;
@@ -661,24 +542,36 @@ function startMelodyRecognition(audioContext, analyser, dataArray, intervalMs = 
 
     const trimmed = downsampled;
     const hasEnergy = trimmed.some(val => val > 0.01);
-    if (!hasEnergy || !window.canPredict) return;
+    if (!hasEnergy) return;
 
-    const predictedIndex = predictNote(trimmed);
+    const input = tf.tensor2d([trimmed]);
+    const prediction = model.predict(input);
+    const predictedIndex = prediction.argMax(-1).dataSync()[0];
+    const confidence = prediction.dataSync()[predictedIndex];
     const predictedLabel = indexToNote(predictedIndex);
-    const timestamp = (performance.now() / 1000).toFixed(2);
+    input.dispose();
+    prediction.dispose();
 
-    melodyTimeline.push({ time: timestamp, label: predictedLabel });
+    const timestamp = performance.now() / 1000;
+    melodyTimeline.push({ time: timestamp.toFixed(2), label: predictedLabel });
 
-    console.log(`🎵 ${timestamp}s → ${predictedLabel}`);
+    console.log(`🎵 ${timestamp.toFixed(2)}s → ${predictedLabel} (${(confidence * 100).toFixed(1)}%)`);
+    logPredictionToText(timestamp, predictedLabel, confidence);
 
     const labelOnly = predictedLabel.split(" ")[0];
     window.predictedMelody.push(labelOnly);
-    window.canPredict = false; // 🔒 блокуємо подальші передбачення для цієї ноти
+    window.canPredict = false;
 
     const notes = labelOnly.includes("_") ? labelOnly.split("_") : [labelOnly];
     if (typeof highlightKey === "function") {
       highlightKey(notes);
     }
+
+    // ⏱ Розблокування наступного передбачення
+    setTimeout(() => {
+      window.canPredict = true;
+    }, intervalMs);
+
   }, intervalMs);
 
   console.log("▶️ Запущено розпізнавання мелодії...");
@@ -686,10 +579,13 @@ function startMelodyRecognition(audioContext, analyser, dataArray, intervalMs = 
 
 
 
+
+
 function stopMelodyRecognition() {
   if (melodyRecognitionInterval !== null) {
     clearInterval(melodyRecognitionInterval);
     melodyRecognitionInterval = null;
+    window._melodyStarted = false;
     console.log("⏹ Розпізнавання зупинено.");
     console.log("📄 Результат:", melodyTimeline);
   } else {
@@ -769,4 +665,131 @@ function exportLatentToCSV(points, labels) {
   a.href = url;
   a.download = "latent_space.csv";
   a.click();
+}
+
+function saveToLocal() {
+  localStorage.setItem("trainingData", JSON.stringify(trainingData));
+  localStorage.setItem("labels", JSON.stringify(labels));
+  localStorage.setItem("labelNames", JSON.stringify(labelNames));
+}
+
+function loadFromLocal() {
+  const dataRaw = localStorage.getItem("trainingData");
+  const labelsRaw = localStorage.getItem("labels");
+  const namesRaw = localStorage.getItem("labelNames"); // <-- нова змінна
+
+  if (dataRaw && labelsRaw) {
+    const loadedData = JSON.parse(dataRaw);
+    const loadedLabels = JSON.parse(labelsRaw);
+
+    trainingData.length = 0;
+    labels.length = 0;
+    trainingData.push(...loadedData);
+    labels.push(...loadedLabels);
+
+    // завантажуємо назви лейблів, якщо є
+    if (namesRaw) {
+      const loadedNames = JSON.parse(namesRaw);
+      labelNames.length = 0;
+      labelNames.push(...loadedNames);
+    } else {
+      console.warn("⚠️ Не знайдено labelNames у localStorage. CSV може бути неповним.");
+    }
+
+    console.log("📦 Дані завантажено з localStorage:", trainingData.length);
+  } else {
+    console.log("📭 У localStorage поки немає збережених тренувальних даних.");
+  }
+}
+
+function playMyMelody(audioContext, analyser, dataArray, interval = 1000) {
+  const melody = [
+    "D3_F3_A3",   "F3",      "C3_D#3_G3",  "G3",
+    "C3",         "C3_F3_A3","A#3",        "C3_E3_G3",
+    "E3",         "E3_G#3_B3", "B3",       "C3_F3_B3",
+    "D#3",        "D3_G3_B3", "G3",        "C3_G3_B3",
+    "C3_D#3_G3",  "F3",      "C3",         "C3_F3_A3"
+  ];
+
+  let index = 0;
+
+  const intervalId = setInterval(() => {
+    if (index >= melody.length) {
+      clearInterval(intervalId);
+      console.log("🏁 Мелодія завершена");
+      return;
+    }
+
+    const item = melody[index];
+    const notes = item.includes("_") ? item.split("_") : [item];
+
+    console.log(`🎵 ${index + 1}/${melody.length}:`, item);
+    playSoundAndCapture({
+      audioContext, analyser, dataArray,
+      notes,
+      duration: 0.9
+    });
+
+    index++;
+  }, interval);
+}
+
+// для створення власних файлів мелодій 
+async function recordAndPlayMelody(audioContext, melody, duration = 1, interval = 1000) {
+  const dest = audioContext.createMediaStreamDestination();
+  const recorder = new MediaRecorder(dest.stream);
+  const chunks = [];
+
+  recorder.ondataavailable = event => {
+    if (event.data.size > 0) chunks.push(event.data);
+  };
+
+  recorder.onstop = () => {
+    const blob = new Blob(chunks, { type: 'audio/webm' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'melody.webm';
+    a.click();
+    console.log("💾 Файл збережено як melody.webm");
+  };
+
+  recorder.start();
+  console.log("🔴 Запис почато...");
+
+  // генерація послідовно з записом
+  let index = 0;
+
+  const playNext = () => {
+    if (index >= melody.length) {
+      recorder.stop();
+      console.log("🏁 Мелодія завершена, запис зупинено");
+      return;
+    }
+
+    const item = melody[index];
+    const notes = item.includes("_") ? item.split("_") : [item];
+
+    // генерація через oscillator
+    const gainNode = audioContext.createGain();
+    gainNode.gain.value = 0.7;
+    gainNode.connect(audioContext.destination);
+    gainNode.connect(dest);
+
+    const oscillators = notes.map(note => {
+      const osc = audioContext.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = getFrequencyByNote(note);
+      osc.connect(gainNode);
+      return osc;
+    });
+
+    oscillators.forEach(osc => osc.start());
+    oscillators.forEach(osc => osc.stop(audioContext.currentTime + duration));
+
+    setTimeout(playNext, interval);
+    index++;
+  };
+
+  playNext();
 }
