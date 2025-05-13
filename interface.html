@@ -5,19 +5,19 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Melody Recognizer</title>
+    <title>Melody2Notes</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #1e1e2f;
             color: #e0e0e0;
             margin: 0;
-            padding: 2rem;
+            padding: 1rem;
             text-align: center;
         }
 
         h2 {
-            margin-bottom: 1rem;
+            margin-bottom: 0.5rem;
             color: #ffffff;
         }
 
@@ -60,32 +60,158 @@
             font-size: 0.95rem;
             color: #cfcfcf;
         }
+
+        #spectrums {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        #spectrums canvas {
+            background: #111;
+            width: 60%;
+            border-radius: 6px;
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+        }
+
+        figcaption {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        select {
+            background: #3b82f6;
+            border: none;
+            color: white;
+            padding: 10px 16px;
+            margin: 6px 5px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            transition: background 0.2s;
+        }
+        
+        .btn {
+            background: #3b82f6;
+            border: none;
+            color: white;
+            padding: 10px 16px;
+            margin: 6px 5px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            transition: background 0.2s;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn:hover {
+            background: #2563eb;
+        }
+
+        #app {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .block {
+            background: #25253a;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 <body>
-    <h2>🎶 Melody Recognizer</h2>
+    <div id="app">
+        <h2>🎶 Melody2Notes</h2>
 
-    <input type="file" id="audioFile" accept="audio/mp3">
-    <br><br>
+        <input type="file" id="audioFile" accept="audio/mp3" style="display: none;">
+        <div id="controlBlock" class="block" style="display: flex; flex-direction: column; gap: 10px; align-items: center;">
+            <!-- Рядок кнопок -->
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;">
+                <label for="audioFile" class="btn" onclick="createAndInsertPianoRoll('keyboardContainer'); drawPianoRoll(); drawWaterfall()">🎵 Вибрати файл</label>
+                <button id="play">▶️ Відтворити</button>
+                <button id="pause">⏸️ Пауза</button>
+                <button id="stop">⏹️ Зупинити</button>
+            </div>
 
-    <button id="train_notes">🎼 Тренувати ноти</button>
-    <button id="train_chords">🎹 Тренувати акорди</button>
-    <button onclick="saveModel()">💾 Зберегти модель</button>
-    <button onclick="loadModel()">📥 Завантажити модель</button>
-    <br><br>
+            <!-- Рендж + інформація -->
+            <div style="display: flex; flex-direction: column; align-items: center; width: 100%;">
+                <input type="range" id="progress" min="0" max="100" value="0" step="0.1" style="width: 80%;">
+                <div id="fileInfo" style="margin-top: 5px;"></div>
+            </div>
+        </div>
 
-    <button id="play">▶️ Відтворити</button>
-    <button id="pause">⏸️ Пауза</button>
-    <button id="restart">🔁 Заново</button>
+        <!-- Основний блок клавішник + розпізнані акорди -->
+        <div id="keyboardAndNotes" class="block" style="display: flex; gap: 20px;">
+            <!-- Ліва колонка -->
+            <div style="flex: 2; display: flex; flex-direction: column; gap: 10px;">
+                <div id="keyboardContainer"></div>
+            </div>
+            
+            <!-- Права колонка -->
+            <div style="flex: 1; display: flex; flex-direction: column;">
+                <button id="generateAndRecognize" class="btn">🎼 Згенерувати і розпізнати акорди / ноти</button>
+                <div id="predictionLog" style="
+                    border: 1px solid #374151;
+                    padding: 10px;
+                    height: 500px;
+                    overflow-y: auto;
+                    background: #1f2937;
+                    color: #e5e7eb;
+                    font-family: monospace;
+                    font-size: 14px;
+                    white-space: pre-line;
+                    line-height: 1.4;
+                    border-radius: 6px;
+                ">
+                    <strong>📋 Розпізнані акорди / ноти:</strong>
+                </div>
+            </div>
+        </div>
 
-    <br><br>
-    <canvas id="visualizer"></canvas>
+        <div class="block" style="display: flex; flex-direction: column; align-items: center;">
+            <select id="windowFunction">
+              <option value="Hamming">Hamming</option>
+              <option value="Hann">Hann</option>
+              <option value="Blackman">Blackman</option>
+            </select>
+            <canvas id="visualizer"></canvas>
+            <section id="spectrums" style="display: flex; gap: 20px; justify-content: center;">
 
-    <input type="range" id="progress" min="0" max="100" value="0" step="0.1">
+                <figure style="width: 400px; text-align: center; margin: 0;">
+                <canvas id="rawSpectrumCanvas" width="400" height="100"></canvas>
+                <figcaption style="font-size: 0.8rem; color: #888;">📉 Raw спектр</figcaption>
+                </figure>
+            
+                <figure style="width: 400px; text-align: center; margin: 0;">
+                <canvas id="windowedSpectrumCanvas" width="400" height="100"></canvas>
+                <figcaption style="font-size: 0.8rem; color: #888;">📉 Windowed спектр</figcaption>
+                </figure>
+            
+            </section>
+        </div>    
 
-    <div id="fileInfo"></div>
 
-    <script src="interface.js"></script>
-    <script src="training.js"></script>
+        <div class="block" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center;">
+            <button id="createModelBtn" class="btn">🧠 Нова модель</button>
+            <button id="generateDataBtn" class="btn">🎼 Генерація нот та акордів</button>
+            <button id="trainModelBtn" class="btn">🚀 Тренувати модель</button>
+            <button id="saveModelBtn" class="btn">💾 Зберегти модель</button>
+        </div>
+        <div class="block" id="chartsBlock" style="display: none; flex-direction: column; align-items: center;">
+            <canvas id="accuracyChart" width="600" height="300"></canvas>
+            <canvas id="lossChart" width="600" height="300"></canvas>
+        </div>
+
+        <script src="interface.js"></script>
+        <script src="training.js"></script>
+    </div>
 </body>
 </html>
