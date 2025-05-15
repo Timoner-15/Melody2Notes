@@ -2,6 +2,7 @@ const tf = window.tf || {};
 let audioElement, sourceNode, analyser, dataArray, canvas, canvasCtx, pianoRollCanvas, pianoRollCtx, waterfallCanvas, waterfallCtx;
 let lastLogged = 0; // timestamp in ms
 let isFirstPlay = true;
+let isProcessInProgress = false;
 
 window.addEventListener('load', () => {
 
@@ -21,6 +22,10 @@ function activateApp() {
 }
 
 document.getElementById('audioFile').addEventListener('change', function(event) {
+    if (isProcessInProgress) {
+        console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+        return;
+    }
     const file = event.target.files[0];
     if (!file) return;
     const objectURL = URL.createObjectURL(file);
@@ -76,6 +81,10 @@ function initializeAudio(url, file) {
     draw();
     
     document.getElementById("play").addEventListener("click", () => {
+        if (isProcessInProgress) {
+            console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+            return;
+        }
         if (audioElement) {
           // 🧼 Очистити лог
           const logBox = document.getElementById("predictionLog");
@@ -92,6 +101,10 @@ function initializeAudio(url, file) {
         }
       });
     document.getElementById("pause").addEventListener("click", () => {
+        if (isProcessInProgress) {
+            console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+            return;
+        }
         if (audioElement) {
             audioElement.pause();
             stopMelodyRecognition();
@@ -100,6 +113,10 @@ function initializeAudio(url, file) {
         }
     });
     document.getElementById("stop").addEventListener("click", () => {
+        if (isProcessInProgress) {
+            console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+            return;
+        }
         if (audioElement) {
             audioElement.pause();
             audioElement.currentTime = 0;
@@ -112,6 +129,10 @@ function initializeAudio(url, file) {
     document.getElementById("generateAndRecognize").addEventListener("click", () => {
         if (!audioContext || !analyser || !dataArray) {
             console.warn("⚠️ Аудіо або аналізатор ще не ініціалізовано.");
+            return;
+        }
+        if (isProcessInProgress) {
+            console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
             return;
         }
 
@@ -146,11 +167,16 @@ function initializeAudio(url, file) {
             console.log("🎬 Відтворюємо згенеровану мелодію");
             playGeneratedMelody(audioContext, analyser, dataArray, 8);
         }
+
     });
 
     
 
     document.getElementById("createModelBtn").addEventListener("click", () => {
+        if (isProcessInProgress) {
+            console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+            return;
+        }
         createModel();
         console.log("🧠 Нова модель створена.");
     });
@@ -160,22 +186,33 @@ function initializeAudio(url, file) {
             console.warn("⚠️ Аудіо не ініціалізовано.");
             return;
         }
+        if (isProcessInProgress) {
+            console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+            return;
+        }
 
-        // ❗ Завжди зупиняємо розпізнавання перед генерацією
+        disableAllControls();
+
+        // Завжди зупиняємо розпізнавання перед генерацією
         if (melodyRecognitionInterval !== null) {
             stopMelodyRecognition();
             console.log("⏹ Розпізнавання зупинено для чистоти тренувальних даних.");
         }
+        try {
+            console.log("🎼 Генерація нот...");
+            await generateNotesForTraining(audioContext, analyser, dataArray);
 
-        console.log("🎼 Генерація нот...");
-        await generateNotesForTraining(audioContext, analyser, dataArray);
+            console.log("🎹 Генерація акордів...");
+            await generateChordsForTraining(audioContext, analyser, dataArray);
 
-        console.log("🎹 Генерація акордів...");
-        await generateChordsForTraining(audioContext, analyser, dataArray);
-
-        console.log("✅ Генерація завершена.");
-        saveToLocal();
-        console.log("💾 Dataset збережено автоматично після генерації.");
+            console.log("✅ Генерація завершена.");
+            saveToLocal();
+            console.log("💾 Dataset збережено автоматично після генерації.");
+        } catch (err) {
+            console.warn("❌ Помилка під час генерації:", err);
+        } finally {
+            enableAllControls();
+        }
     });
 
     document.getElementById("trainModelBtn").addEventListener("click", () => {
@@ -183,12 +220,28 @@ function initializeAudio(url, file) {
             console.warn("⚠️ Модель не створено.");
             return;
         }
+        if (isProcessInProgress) {
+            console.warn("⚠️ Тренування вже запущене.");
+            return;
+        }
+        disableAllControls();
+
         console.log("🚀 Запуск тренування...");
-        trainModelWithCharts();
+        trainModelWithCharts().then(() => {
+            console.log("✅ Тренування завершено.");
+        }).catch(() => {
+            console.warn("❌ Помилка під час тренування.");
+        }).finally(() => {
+            enableAllControls();
+        });
     });
 
     document.getElementById("saveModelBtn").addEventListener("click", () => {
         if (model) {
+            if (isProcessInProgress) {
+                console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+                return;
+            }
             saveModel();
             console.log("💾 Модель збережено.");
         } else {
@@ -198,11 +251,19 @@ function initializeAudio(url, file) {
     
     const progress = document.getElementById("progress");
     audioElement.addEventListener("timeupdate", () => {
+        if (isProcessInProgress) {
+            console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+            return;
+        }
         progress.value = (audioElement.currentTime / audioElement.duration) * 100;
         updateFileInfo(file);
     });
     
     progress.addEventListener("input", () => {
+        if (isProcessInProgress) {
+            console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+            return;
+        }
         audioElement.currentTime = (progress.value / 100) * audioElement.duration;
     });
 }
@@ -511,4 +572,16 @@ function drawWaterfall() {
     target.drawImage(window.offscreenWaterfall, 0, 0);
 
     requestAnimationFrame(drawWaterfall);
+}
+
+function disableAllControls() {
+    isProcessInProgress = true;
+    document.querySelectorAll("button").forEach(btn => btn.disabled = true);
+    console.log("🚫 Всі кнопки тимчасово заблоковані (тренування)");
+}
+
+function enableAllControls() {
+    isProcessInProgress = false;
+    document.querySelectorAll("button").forEach(btn => btn.disabled = false);
+    console.log("✅ Кнопки знову активні");
 }

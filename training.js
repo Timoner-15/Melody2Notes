@@ -220,7 +220,7 @@ function createModel(inputSize = null, outputSize = notes.length) {
     inputShape: [inputSize]
   }));
 
-  // 🧠 Латентний шар
+  // Латентний шар
   model.add(tf.layers.dense({
     units: 16,
     activation: 'relu',
@@ -711,7 +711,7 @@ function playMyMelody(audioContext, analyser, dataArray) {
             console.log("🏁 Мелодія завершена");
 
             // ❗ Оцінюємо точність після відтворення
-            evaluateMelodyAccuracy();
+            // evaluateMelodyAccuracy();
 
             return;
         }
