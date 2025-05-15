@@ -2,16 +2,21 @@
 let model;
 
 // --- Дані для тренування ---
-const trainingData = [];
-const labels = [];
+const dataset = []; // УНІВЕРСАЛЬНИЙ масив об'єктів
 window.expectedMelody = []; // масив реальних міток
 window.canPredict = true;
+let uiInitialized = false;
+let accuracyChart, lossChart;
+// розпізнавання декількох нот та акордів у таймлапсі
+let melodyRecognitionInterval = null;
+let generatedMelodyInterval = null;
+let melodyTimeline = [];
 
 // --- Список міток для нот і акордів ---
 const notes = [
     "C3", "C#3", "D3", "D#3", "E3", "F3", "F#3",
     "G3", "G#3", "A3", "A#3", "B3",
-    "D3_F3_A3", "C3_E3_G3", "E3_G3_B3", "E3_G#3_B3", "C3_F3_A3"
+    "D3_F3_A3", "C3_E3_G3", "E3_G3_B3", "E3_G#3_B3", "C3_F3_A3", "D3_G3_B3", "C3_D#3_G3", "C3_G3_B3", "C3_F3_B3"
   ];
 
 const allLabels = notes.map(note => {
@@ -19,144 +24,30 @@ const freq = getFrequencyByNote(note);
 return `${note} (${freq.toFixed(2)}Hz)`;
 });
 
-// const allLabels = [
-//     // 48 нот (від C3 до B6, частоти в Гц)
-//     "C3 (130.81Hz)","C#3 (138.59Hz)","D3 (146.83Hz)","D#3 (155.56Hz)","E3 (164.81Hz)","F3 (174.61Hz)","F#3 (185.00Hz)","G3 (196.00Hz)","G#3 (207.65Hz)","A3 (220.00Hz)","A#3 (233.08Hz)","B3 (246.94Hz)"
-//     // "C4 (261.63Hz)","C#4 (277.18Hz)","D4 (293.66Hz)","D#4 (311.13Hz)","E4 (329.63Hz)","F4 (349.23Hz)","F#4 (369.99Hz)","G4 (392.00Hz)","G#4 (415.30Hz)","A4 (440.00Hz)","A#4 (466.16Hz)","B4 (493.88Hz)",
-//     // "C5 (523.25Hz)","C#5 (554.37Hz)","D5 (587.33Hz)","D#5 (622.25Hz)","E5 (659.25Hz)","F5 (698.46Hz)","F#5 (739.99Hz)","G5 (783.99Hz)","G#5 (830.61Hz)","A5 (880.00Hz)","A#5 (932.33Hz)","B5 (987.77Hz)",
-//     // "C6 (1046.50Hz)","C#6 (1108.73Hz)","D6 (1174.66Hz)","D#6 (1244.51Hz)","E6 (1318.51Hz)","F6 (1396.91Hz)","F#6 (1479.98Hz)","G6 (1567.98Hz)","G#6 (1661.22Hz)","A6 (1760.00Hz)","A#6 (1864.66Hz)","B6 (1975.53Hz)",
-//     // "C7 (2093.00Hz)"
-
-//     // 132 акорди, випадково вибрані (назви умовні, можуть бути будь-які комбінації)
-//     // "C_E_G", "D_F_A", "E_G_B", "F_A_C5", "G_B_D5", "A_C5_E5", "B_D5_F#5", "C#4_E4_A4",
-//     // "D#4_G4_B4", "F#4_A4_C5", "G#4_C5_E5", "A#4_D5_F5", "C5_E5_G5", "D5_F5_A5", "E5_G5_B5",
-//     // "F5_A5_C6", "G5_B5_D6", "A5_C6_E6", "B5_D6_F#6", "C6_E6_G6", "D6_F6_A6", "E6_G6_B6",
-//     // "C_E_G#", "D_F#_A#", "E_G#_B", "F#_A_C#5", "G#_B_D#5", "A#_C#5_E5", "B_D#5_F#5",
-//     // "C4_E4_F#4", "D4_F#4_G4", "E4_G4_A4", "F4_A4_B4", "G4_B4_C5", "A4_C5_D5", "B4_D5_E5",
-//     // "C5_E5_F#5", "D5_F#5_G5", "E5_G5_A5", "F5_A5_B5", "G5_B5_C6", "A5_C6_D6", "B5_D6_E6",
-//     // "C3_E3_G3", "C4_E4_G4", "C5_E5_G5", "D3_F3_A3", "D4_F4_A4", "D5_F5_A5",
-//     // "E3_G3_B3", "E4_G4_B4", "E5_G5_B5", "F3_A3_C4", "F4_A4_C5", "F5_A5_C6",
-//     // "G3_B3_D4", "G4_B4_D5", "G5_B5_D6", "A3_C4_E4", "A4_C5_E5", "A5_C6_E6",
-//     // "B3_D4_F#4", "B4_D5_F#5", "B5_D6_F#6"
-// ];
-
-// function generateNotesForTraining(audioContext, analyser, dataArray) {
-//   const notes = allLabels.slice(0, 12).map(label => label.split(" ")[0]);
-
-//   const playSequentially = async () => {
-//       for (const note of notes) {
-//           const input = await playSoundAndCapture({
-//               audioContext, analyser, dataArray,
-//               notes: [note],
-//               duration: 1
-//           });
-
-//           if (input) {
-//               // 🔮 Передбачення
-//               const predictedIndex = predictNote(input);
-//               const predictedLabel = indexToNote(predictedIndex);
-
-//               console.log(`🎯 Очікувана нота: ${note}`);
-//               console.log(`🔮 Модель передбачила: ${predictedLabel}`);
-
-//               if (predictedLabel.startsWith(note)) {
-//                   // ✅ Якщо вгадано — додаємо до датасету
-//                   const label = new Array(allLabels.length).fill(0);
-//                   const index = allLabels.findIndex(l => l.startsWith(note));
-//                   if (index !== -1) {
-//                       label[index] = 1;
-//                       trainingData.push(input);
-//                       labels.push(label);
-//                       console.log(`✅ Додано правильне передбачення: ${note}`);
-//                   }
-//               } else {
-//                   // ❌ Якщо помилилась — зберігаємо для ручного виправлення
-//                   window._lastInput = input;
-//                   console.warn(`❌ Модель помилилась. Щоб виправити, введи:
-//                   correctPrediction(window._lastInput, "${note}")`);
-//               }
-//           }
-
-//           // ⏸️ Пауза перед наступною нотою
-//           pauseTraining();
-//           while (getTrainingPauseState()) {
-//               await new Promise(r => setTimeout(r, 100));
-//           }
-//       }
-//   };
-
-//   return playSequentially();
-// }
-
-
-// function generateChordsForTraining(audioContext, analyser, dataArray) {
-//   const chords = allLabels.slice(12).map(label => label.split(" ")[0]);
-
-//   const playSequentially = async () => {
-//       for (const chordName of chords) {
-//           const chordNotes = chordName.split("_");
-
-//           const input = await playSoundAndCapture({
-//               audioContext, analyser, dataArray,
-//               notes: chordNotes,
-//               duration: 1
-//           });
-
-//           if (input) {
-//               // 🔮 Передбачення
-//               const predictedIndex = predictNote(input);
-//               const predictedLabel = indexToNote(predictedIndex);
-
-//               console.log(`🎯 Очікуваний акорд: ${chordName}`);
-//               console.log(`🔮 Модель передбачила: ${predictedLabel}`);
-
-//               if (predictedLabel.startsWith(chordName)) {
-//                   // ✅ Якщо вгадано — додаємо
-//                   const label = new Array(allLabels.length).fill(0);
-//                   const index = allLabels.findIndex(l => l.startsWith(chordName));
-//                   if (index !== -1) {
-//                       label[index] = 1;
-//                       trainingData.push(input);
-//                       labels.push(label);
-//                       console.log(`✅ Додано правильне передбачення: ${chordName}`);
-//                   }
-//               } else {
-//                   // ❌ Якщо помилилась — зберігаємо для виправлення
-//                   window._lastInput = input;
-//                   console.warn(`❌ Модель помилилась. Щоб виправити, введи:
-//                   correctPrediction(window._lastInput, "${chordName}")`);
-//               }
-//           }
-
-//           // ⏸️ Пауза перед наступним акордом
-//           pauseTraining();
-//           while (getTrainingPauseState()) {
-//               await new Promise(r => setTimeout(r, 100));
-//           }
-//       }
-//   };
-
-//   return playSequentially();
-// }
-
 function generateNotesForTraining(audioContext, analyser, dataArray) {
-  const notes = allLabels.slice(0, 12).map(label => label.split(" ")[0]);
+  const notesList = allLabels.slice(0, 12).map(label => label.split(" ")[0]);
 
   const playSequentially = async () => {
-    for (const note of notes) {
+    for (const note of notesList) {
       const input = await playSoundAndCapture({
-        audioContext, analyser, dataArray,
+        audioContext,
+        analyser,
+        dataArray,
         notes: [note],
-        duration: 1
+        duration: 0.5,/*0.8 + Math.random() * 0.4,*/ // Рандомізація тривалості
+        randomize: true // Вкажемо, що хочемо різнобарвність (додаємо нову поведінку)
       });
 
       if (input) {
-        const label = new Array(allLabels.length).fill(0);
+        const labelVector = new Array(allLabels.length).fill(0);
         const index = allLabels.findIndex(l => l.startsWith(note));
         if (index !== -1) {
-          label[index] = 1;
-          trainingData.push(input);
-          labels.push(label);
+          labelVector[index] = 1;
+          dataset.push({
+            input,
+            labelVector,
+            labelName: note
+          });
           console.log(`🎼 Додано: ${note}`);
         }
       }
@@ -173,19 +64,31 @@ function generateChordsForTraining(audioContext, analyser, dataArray) {
     for (const chordName of chords) {
       const chordNotes = chordName.split("_");
 
+      // Можемо додати 1-2 додаткові ноти (для різнобарвності)
+      // if (Math.random() < 0.5) {
+      //   const extraNote = allLabels[Math.floor(Math.random() * 12)].split(" ")[0];
+      //   if (!chordNotes.includes(extraNote)) chordNotes.push(extraNote);
+      // }
+
       const input = await playSoundAndCapture({
-        audioContext, analyser, dataArray,
+        audioContext,
+        analyser,
+        dataArray,
         notes: chordNotes,
-        duration: 1
+        duration: 0.5,/*0.8 + Math.random() * 0.4,*/ // Рандомізація тривалості
+        randomize: true // Додаємо поведінку для варіацій
       });
 
       if (input) {
-        const label = new Array(allLabels.length).fill(0);
+        const labelVector = new Array(allLabels.length).fill(0);
         const index = allLabels.findIndex(l => l.startsWith(chordName));
         if (index !== -1) {
-          label[index] = 1;
-          trainingData.push(input);
-          labels.push(label);
+          labelVector[index] = 1;
+          dataset.push({
+            input,
+            labelVector,
+            labelName: chordName
+          });
           console.log(`🎹 Додано: ${chordName}`);
         }
       }
@@ -195,7 +98,20 @@ function generateChordsForTraining(audioContext, analyser, dataArray) {
   return playSequentially();
 }
 
+function getCleanDataset(correctSize) {
+  return dataset.filter(d => d.input.length === correctSize);
+}
 
+// При тренуванні:
+const correctSize = model.inputs[0].shape[1];
+const cleanDataset = getCleanDataset(correctSize);
+
+const cleanData = cleanDataset.map(d => d.input);
+const cleanLabels = cleanDataset.map(d => d.labelVector);
+const cleanNames = cleanDataset.map(d => d.labelName);
+
+// Тепер при експорті:
+exportLatentToCSV(reduced, cleanNames);
 
 function splitDataset(data, labels, trainRatio = 0.8) {
   const indices = [...data.keys()];
@@ -252,7 +168,7 @@ function playSoundAndCapture({ audioContext, analyser, dataArray, notes, duratio
   const oscillators = notes.map(note => {
       const osc = audioContext.createOscillator();
       osc.type = "sine";
-      osc.frequency.value = getFrequencyByNote(note);
+      osc.frequency.value = getFrequencyByNote(note) * (0.98 + Math.random() * 0.04);
       osc.connect(gainNode);
       return osc;
   });
@@ -288,13 +204,13 @@ function playSoundAndCapture({ audioContext, analyser, dataArray, notes, duratio
               return;
           }
 
-          resolve(noisyTrimmed);
+          resolve(trimmed);
       };
   });
 }
 
 function createModel(inputSize = null, outputSize = notes.length) {
-  if (!inputSize) inputSize = trainingData[0]?.length || 64;
+  if (!inputSize) inputSize = dataset[0]?.length || 64;
 
   model = tf.sequential();
 
@@ -304,7 +220,7 @@ function createModel(inputSize = null, outputSize = notes.length) {
     inputShape: [inputSize]
   }));
 
-  // 🧠 Латентний шар
+  // Латентний шар
   model.add(tf.layers.dense({
     units: 16,
     activation: 'relu',
@@ -325,41 +241,6 @@ function createModel(inputSize = null, outputSize = notes.length) {
   console.log("🧠 Модель з латентним простором створено:");
   model.summary();
 }
-
-async function trainModel(epochs = 200, batchSize = 16) {
-    if (!trainingData.length || !labels.length) {
-      console.error("Немає даних для тренування");
-      return;
-    }
-  
-    initializeCharts();
-  
-    const correctSize = model.inputs[0].shape[1];
-    const cleanData = trainingData.filter(d => d.length === correctSize);
-    const cleanLabels = labels.slice(-cleanData.length);
-  
-    const xs = tf.tensor2d(cleanData, [cleanData.length, correctSize]);
-    const ys = tf.tensor2d(cleanLabels);
-  
-    console.log("Починається тренування...");
-    await model.fit(xs, ys, {
-      epochs,
-      batchSize,
-      validationSplit: 0.2,
-      shuffle: true,
-      callbacks: {
-        onEpochEnd: (epoch, logs) => {
-          console.log(`Епоха ${epoch + 1}: точність = ${logs.acc.toFixed(4)}, втрата = ${logs.loss.toFixed(4)}`);
-          updateCharts(epoch + 1, logs.acc, logs.val_acc);
-        }
-      }
-    });
-  
-    xs.dispose();
-    ys.dispose();
-  
-    console.log("Тренування завершено.");
-  }
 
 function predictNote(inputArray) {
     if (!model) {
@@ -430,40 +311,32 @@ async function saveModel() {
 async function loadModel() {
     try {
         model = await tf.loadLayersModel('localstorage://note-model');
-        console.log("Модель завантажено з localStorage");
+        model.compile({
+            optimizer: 'adam',
+            loss: 'categoricalCrossentropy',
+            metrics: ['accuracy']
+        });
+        console.log("✅ Модель завантажено з localStorage і скомпільовано");
         model.summary();
     } catch (err) {
-        console.error("Не вдалося завантажити модель:", err);
+        console.error("❌ Не вдалося завантажити модель:", err);
     }
-};
-
-function resetTraining() {
-    trainingData.length = 0;
-    labels.length = 0;
-    console.log("🧹 Дані очищено. Готово до нового тренування.");
-    createModel(64); // створює нову модель з правильним inputSize, якщо є trainingData[0]
 }
-
-// JS з Chart.js
-
-const canvasAcc = document.createElement('canvas');
-canvasAcc.id = 'accuracyChart';
-canvasAcc.width = 600;
-canvasAcc.height = 300;
-document.body.appendChild(canvasAcc);
-
-const canvasLoss = document.createElement('canvas');
-canvasLoss.id = 'lossChart';
-canvasLoss.width = 600;
-canvasLoss.height = 300;
-document.body.appendChild(canvasLoss);
 
 const accuracyData = [];
 const lossData = [];
 
-let accuracyChart, lossChart;
 
 function initializeCharts() {
+  const accCanvas = document.getElementById('accuracyChart');
+  const lossCanvas = document.getElementById('lossChart');
+
+  document.getElementById("chartsBlock").style.display = "flex";
+
+  if (!accCanvas || !lossCanvas) {
+      console.warn("⚠️ Canvas ще не знайдено в DOM.");
+      return;
+  }
   // Знищення старих графіків, якщо вони існують
   if (accuracyChart) {
     accuracyChart.destroy();
@@ -490,7 +363,8 @@ function initializeCharts() {
         borderColor: '#FFBB28',
         data: [],
         fill: false
-      }]
+      }
+    ]
     },
     options: {
       responsive: false,
@@ -515,76 +389,81 @@ function initializeCharts() {
   });
 }
 
-function updateCharts(epoch, trainAcc, valAcc) {
+function updateCharts(epoch, trainAcc, valAcc, loss) {
+  if (!accuracyChart || !lossChart) {
+    console.warn("⚠️ Charts ще не ініціалізовано.");
+    return;
+  }
+
   accuracyChart.data.labels.push(epoch);
-  accuracyChart.data.datasets[0].data.push(trainAcc);
-  accuracyChart.data.datasets[1].data.push(valAcc); // нова лінія
+  accuracyChart.data.datasets[0].data.push(trainAcc ?? 0);
+  accuracyChart.data.datasets[1].data.push(valAcc ?? 0);
   accuracyChart.update();
 
-  // loss без змін
   lossChart.data.labels.push(epoch);
-  lossChart.data.datasets[0].data.push(valAcc); // або logs.loss
+  lossChart.data.datasets[0].data.push(loss ?? 0);
   lossChart.update();
 }
 
 
-async function trainModelWithCharts(model, _, __, epochs = 30, batchSize = 16) {
+async function trainModelWithCharts(epochs = 30, batchSize = 20) {
+  if (!model || !model.inputs) {
+    console.error("❌ Модель не ініціалізована або некоректна.");
+    return;
+  }
+  if (!dataset.length) {
+      console.error("❌ Немає даних для тренування.");
+      return;
+  }
+
   initializeCharts();
 
-  // Автоматична перевірка розміру вхідних даних
   const correctSize = model.inputs[0].shape[1];
-  const cleanData = trainingData.filter(d => d.length === correctSize);
-  const cleanLabels = labels.slice(-cleanData.length);
+  const cleanDataset = dataset.filter(d => d.input.length === correctSize);
 
-  const { trainData, trainLabels, testData, testLabels } = splitDataset(trainingData, labels);
+  const cleanData = cleanDataset.map(d => d.input);
+  const cleanLabels = cleanDataset.map(d => d.labelVector);
+  const cleanNames = cleanDataset.map(d => d.labelName);
 
-  const xs = tf.tensor2d(trainData);
-  const ys = tf.tensor2d(trainLabels);
+  const xs = tf.tensor2d(cleanData);
+  const ys = tf.tensor2d(cleanLabels);
 
   await model.fit(xs, ys, {
     epochs,
     batchSize,
     shuffle: true,
-    validationSplit: 0.2, // <--- додай це!
+    validationSplit: 0.2,
     callbacks: {
       onEpochEnd: (epoch, logs) => {
-        updateCharts(epoch + 1, logs.acc, logs.val_acc);
+        const trainAcc = logs.acc ?? logs.accuracy ?? 0;
+        const valAcc = logs.val_acc ?? logs.val_accuracy ?? 0;
+        const loss = logs.loss ?? 0;
+
+        updateCharts(epoch + 1, trainAcc, valAcc, loss);
+        console.log(`Епоха ${epoch + 1}: точність = ${trainAcc.toFixed(4)}, втрата = ${loss.toFixed(4)}, валідація = ${valAcc.toFixed(4)}`);
       }
     }
   });
 
-  // 🧠 Після тренування — вивід латентного простору
-  const labelsOnly = allLabels.slice(0, cleanData.length).map(label => label.split(" ")[0]);
+  xs.dispose();
+  ys.dispose();
 
+  // Після тренування — візуалізація
   const latentVectors = extractLatentVectors(model, cleanData);
   const reduced = reduceTo2D(latentVectors);
+  exportLatentToCSV(reduced, cleanDataset);
 
-  exportLatentToCSV(reduced, labelsOnly);
-
-  // 📊 Оцінка моделі на невідомих даних
-  const xTest = tf.tensor2d(testData);
-  const yTest = tf.tensor2d(testLabels);
-
-  const evalResult = model.evaluate(xTest, yTest);
-
-  evalResult.forEach((metric, i) => {
-    metric.data().then(data => {
-      console.log(`📊 Тестова метрика #${i}: ${data}`);
-    });
-  });
+  console.log("✅ Тренування завершено.");
 }
-
-// Додатково можна викликати trainModelWithCharts(...) із model, xs, ys після підготовки
-
-/* Формули для пояснення:
-Loss (Categorical Crossentropy): -∑(y * log(p))
-Accuracy: Кількість правильних передбачень / Загальна кількість
-*/
-
 
 // ГЕНЕРАЦІЯ МЕЛОДІЇ із ДЕКІЛЬКОХ НОТ ТА АКОРДІВ
 
 function playGeneratedMelody(audioContext, analyser, dataArray, count = 8, interval = 1000) {
+  // Якщо вже запущено — зупинити попереднє
+  if (generatedMelodyInterval !== null) {
+      clearInterval(generatedMelodyInterval);
+      generatedMelodyInterval = null;
+  }
   const labels = allLabels.map(label => label.split(" ")[0]);
   const sequence = [];
 
@@ -625,14 +504,7 @@ function playGeneratedMelody(audioContext, analyser, dataArray, count = 8, inter
 }
 
 
-
-
-
-// розпізнавання декількох нот та акордів у таймлапсі
-let melodyRecognitionInterval = null;
-let melodyTimeline = [];
-
-function startMelodyRecognition(audioContext, analyser, dataArray, intervalMs = 500) {
+function startMelodyRecognition(audioContext, analyser, dataArray, intervalMs = 100 /*intervalMs = 500*/) {
   if (melodyRecognitionInterval !== null) {
     console.warn("⏱ Розпізнавання вже запущено.");
     return;
@@ -640,8 +512,11 @@ function startMelodyRecognition(audioContext, analyser, dataArray, intervalMs = 
 
   melodyTimeline = [];
   window.predictedMelody = [];
+  window.canPredict = true;
 
   melodyRecognitionInterval = setInterval(() => {
+    if (!window.canPredict) return;
+
     analyser.getByteFrequencyData(dataArray);
 
     const sampleRate = audioContext.sampleRate;
@@ -661,24 +536,36 @@ function startMelodyRecognition(audioContext, analyser, dataArray, intervalMs = 
 
     const trimmed = downsampled;
     const hasEnergy = trimmed.some(val => val > 0.01);
-    if (!hasEnergy || !window.canPredict) return;
+    if (!hasEnergy) return;
 
-    const predictedIndex = predictNote(trimmed);
+    const input = tf.tensor2d([trimmed]);
+    const prediction = model.predict(input);
+    const predictedIndex = prediction.argMax(-1).dataSync()[0];
+    const confidence = prediction.dataSync()[predictedIndex];
     const predictedLabel = indexToNote(predictedIndex);
-    const timestamp = (performance.now() / 1000).toFixed(2);
+    input.dispose();
+    prediction.dispose();
 
-    melodyTimeline.push({ time: timestamp, label: predictedLabel });
+    const timestamp = performance.now() / 1000;
+    melodyTimeline.push({ time: timestamp.toFixed(2), label: predictedLabel });
 
-    console.log(`🎵 ${timestamp}s → ${predictedLabel}`);
+    console.log(`🎵 ${timestamp.toFixed(2)}s → ${predictedLabel} (${(confidence * 100).toFixed(1)}%)`);
+    logPredictionToText(timestamp, predictedLabel, confidence);
 
     const labelOnly = predictedLabel.split(" ")[0];
     window.predictedMelody.push(labelOnly);
-    window.canPredict = false; // 🔒 блокуємо подальші передбачення для цієї ноти
+    window.canPredict = false;
 
     const notes = labelOnly.includes("_") ? labelOnly.split("_") : [labelOnly];
     if (typeof highlightKey === "function") {
       highlightKey(notes);
     }
+
+    // ⏱ Розблокування наступного передбачення
+    setTimeout(() => {
+      window.canPredict = true;
+    }, intervalMs);
+
   }, intervalMs);
 
   console.log("▶️ Запущено розпізнавання мелодії...");
@@ -686,10 +573,13 @@ function startMelodyRecognition(audioContext, analyser, dataArray, intervalMs = 
 
 
 
+
+
 function stopMelodyRecognition() {
   if (melodyRecognitionInterval !== null) {
     clearInterval(melodyRecognitionInterval);
     melodyRecognitionInterval = null;
+    window._melodyStarted = false;
     console.log("⏹ Розпізнавання зупинено.");
     console.log("📄 Результат:", melodyTimeline);
   } else {
@@ -757,10 +647,11 @@ function reduceTo2D(vectors) {
   return centered.map(row => [row[0], row[1]]);
 }
 
-function exportLatentToCSV(points, labels) {
+function exportLatentToCSV(points, datasetSubset) {
   let csv = "X,Y,Label\n";
   points.forEach((point, i) => {
-    csv += `${point[0]},${point[1]},${labels[i]}\n`;
+      const labelName = datasetSubset[i]?.labelName ?? "undefined";
+      csv += `${point[0]},${point[1]},${labelName}\n`;
   });
 
   const blob = new Blob([csv], { type: 'text/csv' });
@@ -769,4 +660,138 @@ function exportLatentToCSV(points, labels) {
   a.href = url;
   a.download = "latent_space.csv";
   a.click();
+}
+
+function saveToLocal() {
+  localStorage.setItem("dataset", JSON.stringify(dataset));
+  console.log(`💾 Dataset збережено (${dataset.length} прикладів).`);
+}
+
+function loadFromLocal() {
+  const datasetRaw = localStorage.getItem("dataset");
+  if (datasetRaw) {
+    const loadedDataset = JSON.parse(datasetRaw);
+    dataset.length = 0;
+    dataset.push(...loadedDataset);
+    console.log(`📦 Dataset завантажено (${dataset.length} прикладів).`);
+  } else {
+    console.log("📭 У localStorage поки немає збереженого dataset.");
+  }
+}
+
+function playMyMelody(audioContext, analyser, dataArray) {
+    const melody = [
+        { note: "B3", duration: 0.9 },
+        { note: "B3", duration: 0.3 },
+        { note: "B3", duration: 0.3 },
+        { note: "A3", duration: 0.3 },
+        { note: "B3", duration: 0.3 },
+        { note: "C3", duration: 0.3 },
+        { note: "D3", duration: 0.9 },
+        { note: "C3", duration: 0.3 },
+        { note: "B3", duration: 0.5 },
+        { note: "A3", duration: 0.9 },
+        { note: "G3", duration: 0.7 },
+        { note: "B3", duration: 0.7 },
+        { note: "F#3", duration: 0.5 },
+        { note: "B3", duration: 0.5 },
+        { note: "E3", duration: 0.9 },
+        { note: "F#3", duration: 0.3 },
+        { note: "G3", duration: 0.5 },
+        { note: "A3", duration: 0.9 },
+    ];
+
+    // ❗ Ставимо очікувану мелодію в глобальну змінну
+    window.expectedMelody = melody.map(item => item.note);
+
+    let index = 0;
+
+    function playNextNote() {
+        if (index >= melody.length) {
+            console.log("🏁 Мелодія завершена");
+
+            // ❗ Оцінюємо точність після відтворення
+            // evaluateMelodyAccuracy();
+
+            return;
+        }
+
+        const { note, duration } = melody[index];
+
+        console.log(`🎵 ${index + 1}/${melody.length}:`, note);
+
+        playSoundAndCapture({
+            audioContext, analyser, dataArray,
+            notes: [note],
+            duration: duration
+        });
+
+        index++;
+
+        const pause = 0.1 + Math.random() * 0.05;
+        setTimeout(playNextNote, (duration + pause) * 1000);
+    }
+
+    playNextNote();
+}
+
+
+// для створення власних файлів мелодій 
+async function recordAndPlayMelody(audioContext, melody, duration = 1, interval = 1000) {
+  const dest = audioContext.createMediaStreamDestination();
+  const recorder = new MediaRecorder(dest.stream);
+  const chunks = [];
+
+  recorder.ondataavailable = event => {
+    if (event.data.size > 0) chunks.push(event.data);
+  };
+
+  recorder.onstop = () => {
+    const blob = new Blob(chunks, { type: 'audio/webm' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'melody.webm';
+    a.click();
+    console.log("💾 Файл збережено як melody.webm");
+  };
+
+  recorder.start();
+  console.log("🔴 Запис почато...");
+
+  // генерація послідовно з записом
+  let index = 0;
+
+  const playNext = () => {
+    if (index >= melody.length) {
+      recorder.stop();
+      console.log("🏁 Мелодія завершена, запис зупинено");
+      return;
+    }
+
+    const item = melody[index];
+    const notes = item.includes("_") ? item.split("_") : [item];
+
+    // генерація через oscillator
+    const gainNode = audioContext.createGain();
+    gainNode.gain.value = 0.7;
+    gainNode.connect(audioContext.destination);
+    gainNode.connect(dest);
+
+    const oscillators = notes.map(note => {
+      const osc = audioContext.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = getFrequencyByNote(note);
+      osc.connect(gainNode);
+      return osc;
+    });
+
+    oscillators.forEach(osc => osc.start());
+    oscillators.forEach(osc => osc.stop(audioContext.currentTime + duration));
+
+    setTimeout(playNext, interval);
+    index++;
+  };
+
+  playNext();
 }

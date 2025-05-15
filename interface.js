@@ -1,90 +1,47 @@
 const tf = window.tf || {};
-// console.log(audioContext);
 let audioElement, sourceNode, analyser, dataArray, canvas, canvasCtx, pianoRollCanvas, pianoRollCtx, waterfallCanvas, waterfallCtx;
 let lastLogged = 0; // timestamp in ms
+let isFirstPlay = true;
+let isProcessInProgress = false;
 
-// Додаємо новий canvas для частотного водоспаду
-window.onload = function() {
-    const windowSelect = document.createElement("select");
-    windowSelect.id = "windowFunction";
-    ["Hamming", "Blackman-Harris", "Hann"].forEach(name => {
-        const opt = document.createElement("option");
-        opt.value = name;
-        opt.textContent = name;
-        windowSelect.appendChild(opt);
-    });
-    document.body.insertBefore(windowSelect, document.body.firstChild);
+window.addEventListener('load', () => {
 
-    // --- Add Save Training Data Button ---
-    const saveBtn = document.createElement("button");
-    saveBtn.textContent = "Зберегти Training Data";
-    saveBtn.onclick = () => {
-        const blob = new Blob([
-            JSON.stringify({ trainingData, labels }, null, 2)
-        ], { type: "application/json" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "training_data.json";
-        link.click();
-    };
-    document.body.insertBefore(saveBtn, windowSelect.nextSibling);
+    if (typeof createAndInsertWaterfallCanvas === "function") createAndInsertWaterfallCanvas();
+    if (typeof createAndInsertPianoRoll === "function") createAndInsertPianoRoll();
+    if (typeof drawPianoRoll === "function") drawPianoRoll();
+    if (typeof initializeCharts === "function") initializeCharts();
+    if (typeof loadFromLocal === "function") loadFromLocal();
+    tryLoadModel();
+});
 
-    const trainBtn = document.createElement("button");
-    trainBtn.textContent = "Тренувати модель";
-    trainBtn.onclick = () => {
-        trainModel();
-    };
-    document.body.appendChild(trainBtn);
-
-    
-
-    const predictBtn = document.createElement("button");
-    predictBtn.textContent = "Передбачити ноту";
-    predictBtn.onclick = () => {
-        analyser.getByteFrequencyData(dataArray);
-        const input = Array.from(dataArray).map(v => v / 255);
-        const index = predictNote(input);
-        const note = indexToNote(index);
-        alert("Передбачена нота: " + note);
-        highlightKey(note);
-    };
-    document.body.appendChild(predictBtn);
-
-    waterfallCanvas = document.createElement("canvas");
-    waterfallCanvas.width = 600;
-    waterfallCanvas.height = 100;
-    waterfallCanvas.style.background = "black";
-    document.body.appendChild(waterfallCanvas);
-
-     // Додаємо canvas для сирого спектру
-     const rawSpectrumCanvas = document.createElement("canvas");
-     rawSpectrumCanvas.id = "rawSpectrumCanvas";
-     rawSpectrumCanvas.width = 600;
-     rawSpectrumCanvas.height = 150;
-     rawSpectrumCanvas.style.background = "#111";
-     document.body.appendChild(rawSpectrumCanvas);
- 
-     // Додаємо canvas для спектру після віконної функції
-     const windowedSpectrumCanvas = document.createElement("canvas");
-     windowedSpectrumCanvas.id = "windowedSpectrumCanvas";
-     windowedSpectrumCanvas.width = 600;
-     windowedSpectrumCanvas.height = 150;
-     windowedSpectrumCanvas.style.background = "#111";
-     document.body.appendChild(windowedSpectrumCanvas);
- 
-     // Стартуємо анімацію спектрів
-     drawSpectrums();
-
-    waterfallCtx = waterfallCanvas.getContext("2d", { willReadFrequently: true });
-};
+function activateApp() {
+    document.querySelectorAll("button").forEach(btn => btn.disabled = false);
+    if (typeof initializeCharts === "function") initializeCharts();
+    if (typeof drawSpectrums === "function") drawSpectrums();
+    if (typeof loadFromLocal === "function") loadFromLocal();
+}
 
 document.getElementById('audioFile').addEventListener('change', function(event) {
-    const file = event.target.files[0];
-    if (file) {
-        const objectURL = URL.createObjectURL(file);
-        initializeAudio(objectURL, file);
+    if (isProcessInProgress) {
+        console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+        return;
     }
+    const file = event.target.files[0];
+    if (!file) return;
+    const objectURL = URL.createObjectURL(file);
+    initializeAudio(objectURL, file);
 });
+
+async function tryLoadModel() {
+    try {
+        await loadModel();
+        console.log("✅ Модель завантажена");
+        activateApp();
+    } catch (err) {
+        console.warn("⚠️ Модель не знайдена");
+    }
+}
+
 
 function initializeAudio(url, file) {
     audioContext = new AudioContext();
@@ -103,48 +60,210 @@ function initializeAudio(url, file) {
 
     canvas = document.getElementById("visualizer");
     canvasCtx = canvas.getContext("2d");
-    
-    pianoRollCanvas = document.createElement("canvas");
-    pianoRollCanvas.width = 600;
-    pianoRollCanvas.height = 200;
-    pianoRollCanvas.style.background = "#333";
-    document.body.appendChild(pianoRollCanvas);
-    pianoRollCtx = pianoRollCanvas.getContext("2d");
+
+    audioElement.addEventListener("play", () => {
+        if (melodyRecognitionInterval !== null) {
+            stopMelodyRecognition();
+        }
+
+        if (!window._melodyStarted) {
+            window._melodyStarted = true;
+            window.audioStartTime = performance.now(); // 🕒 фіксуємо старт
+            console.log("▶️ Аудіо запущено — старт розпізнавання");
+            startMelodyRecognition(audioContext, analyser, dataArray);
+        }
+    });
+
+
+    drawWaterfall();
+    // drawPianoRoll();
     
     draw();
-    drawPianoRoll();
-    drawWaterfall();
     
-    document.getElementById("train_notes").addEventListener("click", () => {
-        generateNotesForTraining(audioContext, analyser, dataArray);
-    });
-    document.getElementById("train_chords").addEventListener("click", () => {
-        generateChordsForTraining(audioContext, analyser, dataArray);
-    });
     document.getElementById("play").addEventListener("click", () => {
-        if (audioElement) {
-            audioElement.play();
+        if (isProcessInProgress) {
+            console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+            return;
         }
-    });
+        if (audioElement) {
+          // 🧼 Очистити лог
+          const logBox = document.getElementById("predictionLog");
+          if (logBox) {
+            logBox.innerHTML = "<strong>📋 Розпізнані акорди / ноти:</strong>";
+          }
+      
+          // ⏱ Скинути стартовий час
+          window.audioStartTime = null;
+          window._melodyStarted = false; // дозволити перезапуск
+      
+          // ▶️ Старт аудіо
+          audioElement.play();
+        }
+      });
     document.getElementById("pause").addEventListener("click", () => {
+        if (isProcessInProgress) {
+            console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+            return;
+        }
         if (audioElement) {
             audioElement.pause();
+            stopMelodyRecognition();
+            window._melodyStarted = false;
+            console.log("⏸️ Аудіо і розпізнавання поставлені на паузу");
         }
     });
-    document.getElementById("restart").addEventListener("click", () => {
+    document.getElementById("stop").addEventListener("click", () => {
+        if (isProcessInProgress) {
+            console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+            return;
+        }
         if (audioElement) {
-        audioElement.currentTime = 0;
-        audioElement.play();
+            audioElement.pause();
+            audioElement.currentTime = 0;
+            stopMelodyRecognition(); // ❗ Зупиняємо розпізнавання
+            window._melodyStarted = false;
+            console.log("⏹ Розпізнавання і аудіо зупинені");
+        }
+    });
+
+    document.getElementById("generateAndRecognize").addEventListener("click", () => {
+        if (!audioContext || !analyser || !dataArray) {
+            console.warn("⚠️ Аудіо або аналізатор ще не ініціалізовано.");
+            return;
+        }
+        if (isProcessInProgress) {
+            console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+            return;
+        }
+
+        // Очищуємо лог
+        const logBox = document.getElementById("predictionLog");
+        if (logBox) {
+            logBox.innerHTML = "<strong>📋 Розпізнані акорди / ноти:</strong>";
+        }
+
+        // Завжди зупиняємо попередні процеси
+        if (melodyRecognitionInterval !== null) {
+            stopMelodyRecognition();
+        }
+        if (generatedMelodyInterval !== null) {
+            clearInterval(generatedMelodyInterval);
+            generatedMelodyInterval = null;
+        }
+
+        // Скидаємо стани
+        window.audioStartTime = null;
+        window._melodyStarted = false;
+        window.canPredict = true;
+
+        // 🔥 Завжди запускаємо розпізнавання нот та акордів ПЕРЕД мелодією
+        startMelodyRecognition(audioContext, analyser, dataArray);
+
+        if (isFirstPlay) {
+            console.log("🎬 Відтворюємо Гімн України (перший раз)");
+            playMyMelody(audioContext, analyser, dataArray);
+            isFirstPlay = false;
+        } else {
+            console.log("🎬 Відтворюємо згенеровану мелодію");
+            playGeneratedMelody(audioContext, analyser, dataArray, 8);
+        }
+
+    });
+
+    
+
+    document.getElementById("createModelBtn").addEventListener("click", () => {
+        if (isProcessInProgress) {
+            console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+            return;
+        }
+        createModel();
+        console.log("🧠 Нова модель створена.");
+    });
+
+    document.getElementById("generateDataBtn").addEventListener("click", async () => {
+        if (!audioContext || !analyser || !dataArray) {
+            console.warn("⚠️ Аудіо не ініціалізовано.");
+            return;
+        }
+        if (isProcessInProgress) {
+            console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+            return;
+        }
+
+        disableAllControls();
+
+        // Завжди зупиняємо розпізнавання перед генерацією
+        if (melodyRecognitionInterval !== null) {
+            stopMelodyRecognition();
+            console.log("⏹ Розпізнавання зупинено для чистоти тренувальних даних.");
+        }
+        try {
+            console.log("🎼 Генерація нот...");
+            await generateNotesForTraining(audioContext, analyser, dataArray);
+
+            console.log("🎹 Генерація акордів...");
+            await generateChordsForTraining(audioContext, analyser, dataArray);
+
+            console.log("✅ Генерація завершена.");
+            saveToLocal();
+            console.log("💾 Dataset збережено автоматично після генерації.");
+        } catch (err) {
+            console.warn("❌ Помилка під час генерації:", err);
+        } finally {
+            enableAllControls();
+        }
+    });
+
+    document.getElementById("trainModelBtn").addEventListener("click", () => {
+        if (!model) {
+            console.warn("⚠️ Модель не створено.");
+            return;
+        }
+        if (isProcessInProgress) {
+            console.warn("⚠️ Тренування вже запущене.");
+            return;
+        }
+        disableAllControls();
+
+        console.log("🚀 Запуск тренування...");
+        trainModelWithCharts().then(() => {
+            console.log("✅ Тренування завершено.");
+        }).catch(() => {
+            console.warn("❌ Помилка під час тренування.");
+        }).finally(() => {
+            enableAllControls();
+        });
+    });
+
+    document.getElementById("saveModelBtn").addEventListener("click", () => {
+        if (model) {
+            if (isProcessInProgress) {
+                console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+                return;
+            }
+            saveModel();
+            console.log("💾 Модель збережено.");
+        } else {
+            console.warn("⚠️ Модель ще не створено.");
         }
     });
     
     const progress = document.getElementById("progress");
     audioElement.addEventListener("timeupdate", () => {
+        if (isProcessInProgress) {
+            console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+            return;
+        }
         progress.value = (audioElement.currentTime / audioElement.duration) * 100;
         updateFileInfo(file);
     });
     
     progress.addEventListener("input", () => {
+        if (isProcessInProgress) {
+            console.warn("⚠️ Неможливо виконати. Триває тренування моделі.");
+            return;
+        }
         audioElement.currentTime = (progress.value / 100) * audioElement.duration;
     });
 }
@@ -174,59 +293,106 @@ function draw() {
     canvasCtx.stroke();
 }
 
-function drawPianoRoll(highlightedNotes = []) {
-    if (!Array.isArray(highlightedNotes)) {
-        highlightedNotes = [highlightedNotes]; // зробити з рядка масив
+function createAndInsertPianoRoll(targetId = 'keyboardContainer') {
+    const container = document.getElementById(targetId);
+    if (!container) {
+        console.error(`❌ Контейнер з id="${targetId}" не знайдено.`);
+        return null;
     }
 
-    // console.log("🎨 Отримані ноти:", highlightedNotes);
+    const existingCanvas = document.getElementById('pianoRollCanvas');
+    if (existingCanvas) existingCanvas.remove();
 
+    const canvas = document.createElement('canvas');
+    canvas.id = 'pianoRollCanvas';
+    canvas.width = 600;
+    canvas.height = 200;
+    canvas.style.background = '#333';
 
-    if (!pianoRollCtx) {
-        console.error("pianoRollCtx is not initialized");
+    container.appendChild(canvas);
+
+    pianoRollCanvas = canvas; // ← важливо
+    pianoRollCtx = canvas.getContext('2d'); // ← важливо
+
+    return canvas;
+}
+
+function drawPianoRoll(highlightedNotes = [], targetCanvasId = 'pianoRollCanvas') {
+    const canvas = pianoRollCanvas || document.getElementById(targetCanvasId);
+    if (!canvas) {
+        console.error(`❌ Canvas з id="${targetCanvasId}" не знайдено.`);
         return;
     }
 
-    pianoRollCtx.fillStyle = "#333";
-    pianoRollCtx.fillRect(0, 0, pianoRollCanvas.width, pianoRollCanvas.height);
-    
+    const ctx = pianoRollCtx || canvas.getContext('2d');
+    if (!ctx) {
+        console.error(`❌ Canvas context не знайдено.`);
+        return;
+    }
+
+    ctx.fillStyle = "#333";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
     const startOctave = 3;
     const endOctave = 3;
-    const numOctaves = endOctave - startOctave + 1;
-    const totalKeys = numOctaves * 12;
-    const keyWidth = pianoRollCanvas.width / (numOctaves * 7);
+    const keyWidth = canvas.width / (7);
     const blackKeyWidth = keyWidth * 0.6;
-    const blackKeyHeight = pianoRollCanvas.height * 0.6;
-    
+    const blackKeyHeight = canvas.height * 0.6;
+
     const whiteKeys = ["C", "D", "E", "F", "G", "A", "B"];
     const blackKeyOffsets = [0.7, 1.7, 3.7, 4.7, 5.7];
     const blackKeyNames = ["C#", "D#", "F#", "G#", "A#"];
 
     // Draw white keys
-    for (let oct = startOctave; oct <= endOctave; oct++) {
-        for (let i = 0; i < whiteKeys.length; i++) {
-            let note = whiteKeys[i] + oct;
-            let isHighlighted = highlightedNotes.includes(note);
-            pianoRollCtx.fillStyle = isHighlighted ? "yellow" : "white";
-            pianoRollCtx.fillRect(((oct - startOctave) * 7 + i) * keyWidth, 0, keyWidth - 2, pianoRollCanvas.height);
-            pianoRollCtx.strokeRect(((oct - startOctave) * 7 + i) * keyWidth, 0, keyWidth, pianoRollCanvas.height);
-        }
+    for (let i = 0; i < whiteKeys.length; i++) {
+        let note = whiteKeys[i] + startOctave;
+        let isHighlighted = highlightedNotes.includes(note);
+        ctx.fillStyle = isHighlighted ? "yellow" : "white";
+        ctx.fillRect(i * keyWidth, 0, keyWidth - 2, canvas.height);
+        ctx.strokeRect(i * keyWidth, 0, keyWidth, canvas.height);
+
+        // Додаємо підпис ноти
+        ctx.fillStyle = isHighlighted ? "black" : "black";
+        ctx.font = "12px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(note, i * keyWidth + keyWidth / 2, canvas.height - 10);
     }
 
     // Draw black keys
-    for (let oct = startOctave; oct <= endOctave; oct++) {
-        for (let i = 0; i < blackKeyOffsets.length; i++) {
-            let note = blackKeyNames[i] + oct;
-            let x = ((oct - startOctave) * 7 + blackKeyOffsets[i]) * keyWidth;
-            let isHighlighted = highlightedNotes.includes(note);
-            pianoRollCtx.fillStyle = isHighlighted ? "yellow" : "black";
-            pianoRollCtx.fillRect(x, 0, blackKeyWidth, blackKeyHeight);
-        }
-    }
+    for (let i = 0; i < blackKeyOffsets.length; i++) {
+        let note = blackKeyNames[i] + startOctave;
+        let x = blackKeyOffsets[i] * keyWidth;
+        let isHighlighted = highlightedNotes.includes(note);
+        ctx.fillStyle = isHighlighted ? "yellow" : "black";
+        ctx.fillRect(x, 0, blackKeyWidth, blackKeyHeight);
 
-    //console.log("🔍 Візуалізація підтримує:", whiteKeys.map(k => k + "1"), "... до " + whiteKeys.map(k => k + "4"));
+        // Додаємо підпис ноти на чорній клавіші
+        ctx.fillStyle = isHighlighted ? "black" : "white";
+        ctx.font = "10px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(note, x + blackKeyWidth / 2, blackKeyHeight - 5);
+    }
 }
 
+
+function logPredictionToText(timestamp, predictedLabel, confidence, played = null) {
+    const logBox = document.getElementById("predictionLog");
+  
+    // 🕒 коригований час відносно старту аудіо
+    const offset = window.audioStartTime || 0;
+    const relativeTime = ((timestamp * 1000 - offset) / 1000).toFixed(2);
+  
+    const time = `${relativeTime}s`;
+    const pred = `${predictedLabel} (${(confidence * 100).toFixed(1)}%)`;
+  
+    let line = `🎵 ${time} → ${pred}`;
+    if (played) {
+      line = `▶️ ${time} — зіграно: ${played} | передбачено: ${pred}`;
+    }
+  
+    logBox.innerHTML += `\n${line}`;
+    logBox.scrollTop = logBox.scrollHeight;
+}
 
 window.highlightKey = function(labelOrNotes) {
     const notes = Array.isArray(labelOrNotes)
@@ -241,8 +407,7 @@ function updateFileInfo(file) {
     const fileInfoDiv = document.getElementById("fileInfo");
     const duration = audioElement.duration ? audioElement.duration.toFixed(2) + " sec" : "Calculating...";
     fileInfoDiv.innerHTML = `<strong>File Name:</strong> ${file.name} <br>
-                             <strong>Duration:</strong> ${duration} <br>
-                             <strong>Current Chord:</strong> (Not implemented yet)`;
+                             <strong>Duration:</strong> ${duration} <br>`;
 }
 
 
@@ -334,6 +499,30 @@ function drawSpectrums() {
     }
 }
 
+function createAndInsertWaterfallCanvas(targetId = 'keyboardContainer') {
+    const container = document.getElementById(targetId);
+    if (!container) {
+        console.error(`❌ Контейнер з id="${targetId}" не знайдено.`);
+        return null;
+    }
+
+    // Очистити попередній, якщо є
+    const existingCanvas = container.querySelector('#fallingNotesCanvas');
+    if (existingCanvas) existingCanvas.remove();
+
+    // Створити новий canvas
+    const canvas = document.createElement('canvas');
+    canvas.id = 'fallingNotesCanvas';
+    canvas.width = 600;
+    canvas.height = 300;
+    canvas.style.background = 'black';
+
+    container.appendChild(canvas);
+
+    // Оновити глобальні змінні
+    waterfallCanvas = canvas;
+    waterfallCtx = canvas.getContext('2d');
+}
 
 function drawWaterfall() {
     if (!analyser || !waterfallCtx) {
@@ -383,4 +572,16 @@ function drawWaterfall() {
     target.drawImage(window.offscreenWaterfall, 0, 0);
 
     requestAnimationFrame(drawWaterfall);
+}
+
+function disableAllControls() {
+    isProcessInProgress = true;
+    document.querySelectorAll("button").forEach(btn => btn.disabled = true);
+    console.log("🚫 Всі кнопки тимчасово заблоковані (тренування)");
+}
+
+function enableAllControls() {
+    isProcessInProgress = false;
+    document.querySelectorAll("button").forEach(btn => btn.disabled = false);
+    console.log("✅ Кнопки знову активні");
 }
