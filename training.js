@@ -34,7 +34,7 @@ function generateNotesForTraining(audioContext, analyser, dataArray) {
         analyser,
         dataArray,
         notes: [note],
-        duration: 0.5,/*0.8 + Math.random() * 0.4,*/ // Рандомізація тривалості
+        duration: 0.5,
         randomize: true // Вкажемо, що хочемо різнобарвність (додаємо нову поведінку)
       });
 
@@ -63,19 +63,12 @@ function generateChordsForTraining(audioContext, analyser, dataArray) {
   const playSequentially = async () => {
     for (const chordName of chords) {
       const chordNotes = chordName.split("_");
-
-      // Можемо додати 1-2 додаткові ноти (для різнобарвності)
-      // if (Math.random() < 0.5) {
-      //   const extraNote = allLabels[Math.floor(Math.random() * 12)].split(" ")[0];
-      //   if (!chordNotes.includes(extraNote)) chordNotes.push(extraNote);
-      // }
-
       const input = await playSoundAndCapture({
         audioContext,
         analyser,
         dataArray,
         notes: chordNotes,
-        duration: 0.5,/*0.8 + Math.random() * 0.4,*/ // Рандомізація тривалості
+        duration: 0.5,
         randomize: true // Додаємо поведінку для варіацій
       });
 
@@ -146,7 +139,6 @@ function getFrequencyByNote(note) {
     const semitoneOffset = noteIndex - a4Index;
 
     const frequency = 440 * Math.pow(2, semitoneOffset / 12);
-    // console.log(`Нота: ${key}${octave}, семітон: ${semitoneOffset}, частота: ${frequency.toFixed(2)} Hz`);
 
     // Обмеження діапазону
     if (frequency < 60 || frequency > 260) return 0;
@@ -491,7 +483,7 @@ function playGeneratedMelody(audioContext, analyser, dataArray, count = 8, inter
 
     console.log(`🎵 Граємо (${index + 1}/${sequence.length}): ${label}`);
 
-    window.canPredict = true; // 🔹 дозволяємо передбачити цю ноту
+    window.canPredict = true;
 
     playSoundAndCapture({
       audioContext, analyser, dataArray,
@@ -504,7 +496,7 @@ function playGeneratedMelody(audioContext, analyser, dataArray, count = 8, inter
 }
 
 
-function startMelodyRecognition(audioContext, analyser, dataArray, intervalMs = 100 /*intervalMs = 500*/) {
+function startMelodyRecognition(audioContext, analyser, dataArray, intervalMs = 100) {
   if (melodyRecognitionInterval !== null) {
     console.warn("⏱ Розпізнавання вже запущено.");
     return;
@@ -561,7 +553,7 @@ function startMelodyRecognition(audioContext, analyser, dataArray, intervalMs = 
       highlightKey(notes);
     }
 
-    // ⏱ Розблокування наступного передбачення
+    // ⏱ Розблокування наступного розпізнавання
     setTimeout(() => {
       window.canPredict = true;
     }, intervalMs);
@@ -634,7 +626,7 @@ function extractLatentVectors(model, inputData) {
   const xs = tf.tensor2d(inputData);
   const latentVectors = latentModel.predict(xs);
 
-  return latentVectors.arraySync(); // масив 16-елементних векторів
+  return latentVectors.arraySync(); 
 }
 
 function reduceTo2D(vectors) {
@@ -643,7 +635,6 @@ function reduceTo2D(vectors) {
     return row.map(val => val - mean);
   });
 
-  // Просто виберемо перші дві координати — "штучне зниження"
   return centered.map(row => [row[0], row[1]]);
 }
 
@@ -701,7 +692,7 @@ function playMyMelody(audioContext, analyser, dataArray) {
         { note: "A3", duration: 0.9 },
     ];
 
-    // ❗ Ставимо очікувану мелодію в глобальну змінну
+    // Ставимо очікувану мелодію в глобальну змінну
     window.expectedMelody = melody.map(item => item.note);
 
     let index = 0;
@@ -709,10 +700,6 @@ function playMyMelody(audioContext, analyser, dataArray) {
     function playNextNote() {
         if (index >= melody.length) {
             console.log("🏁 Мелодія завершена");
-
-            // ❗ Оцінюємо точність після відтворення
-            // evaluateMelodyAccuracy();
-
             return;
         }
 

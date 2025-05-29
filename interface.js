@@ -429,6 +429,8 @@ function applyWindowFunction(dataArray, type) {
         windowTensor = tf.signal.hannWindow(N);
     } else if (type === "Hamming") {
         windowTensor = tf.signal.hammingWindow(N);
+    } else if (type === "None") {
+        return Array.from(dataArray).map(v => v / 255);
     } else {
         // Blackman-Harris вручну
         const winArray = new Float32Array(N);
